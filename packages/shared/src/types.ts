@@ -22,6 +22,14 @@ export interface Tenant {
   id: string;
   name: string;
   plan: "standard" | "enterprise";
+  industry: string;
+  healthScore: number;
+  contractEndsAt: string;
+  customerSuccessManager: string;
+  seatsUsed: number;
+  seatsLimit: number;
+  monthlyActiveUsers: number;
+  arr: number;
 }
 
 export interface User {
@@ -57,5 +65,28 @@ export interface AuditLog {
   actorId: string;
   action: string;
   summary: string;
+  createdAt: string;
+}
+
+export interface SupportRisk {
+  id: string;
+  tenantId: string;
+  title: string;
+  severity: "critical" | "high" | "medium" | "low";
+  status: "open" | "in_progress" | "waiting_customer" | "resolved";
+  slaDueAt: string;
+  ownerId: string;
+  category: "support" | "security" | "adoption" | "billing" | "release";
+  impact: string;
+  createdAt: string;
+}
+
+export interface ActivityEvent {
+  id: string;
+  tenantId: string;
+  type: "user" | "approval" | "release" | "audit" | "risk";
+  title: string;
+  actorId: string;
+  targetId?: string;
   createdAt: string;
 }

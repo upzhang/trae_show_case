@@ -17,6 +17,15 @@
 - `GET /api/tenants/:id`：租户详情
 - `PUT /api/tenants/:id/plan`：修改租户计划（需 `tenant:edit`）
   - body: `{ "plan": "standard" | "enterprise" }`
+- `Tenant` 返回字段：
+  - `id`, `name`, `plan`
+  - `industry`：客户行业
+  - `healthScore`：客户健康分，0-100
+  - `contractEndsAt`：合同到期日期，ISO 日期字符串
+  - `customerSuccessManager`：客户成功经理姓名
+  - `seatsUsed`, `seatsLimit`：已用席位与合同席位
+  - `monthlyActiveUsers`：近 30 天活跃用户数
+  - `arr`：年度经常性收入，单位为人民币元
 
 ## 用户
 
@@ -47,6 +56,25 @@
 
 - `GET /api/audit-logs`：审计日志列表（需 `audit:view`）
 
+## 风险工单
+
+- `GET /api/support-risks`：返回当前用户可见的风险/工单队列（需 `tenant:view`）
+- 平台管理员可查看全部租户风险；其他用户只查看自身租户风险
+- `SupportRisk` 返回字段：
+  - `id`, `tenantId`, `title`
+  - `severity`: `"critical" | "high" | "medium" | "low"`
+  - `status`: `"open" | "in_progress" | "waiting_customer" | "resolved"`
+  - `slaDueAt`, `ownerId`, `category`, `impact`, `createdAt`
+
+## 最近活动
+
+- `GET /api/activity-events`：返回当前用户可见的最近活动流（需 `tenant:view`）
+- 平台管理员可查看全部租户活动；其他用户只查看自身租户活动
+- `ActivityEvent` 返回字段：
+  - `id`, `tenantId`, `type`, `title`, `actorId`, `createdAt`
+  - `type`: `"user" | "approval" | "release" | "audit" | "risk"`
+  - `targetId`：可选，关联用户、审批、发布、审计或风险对象
+
 ## 返回结构
 
 接口返回结构对应 `packages/shared/src/types.ts` 中定义：
@@ -56,5 +84,7 @@
 - `ApprovalRequest`
 - `ReleaseRecord`
 - `AuditLog`
+- `SupportRisk`
+- `ActivityEvent`
 
 若权限不足，返回 HTTP 403，内容：`{ "error": "missing permission xxx" }`。

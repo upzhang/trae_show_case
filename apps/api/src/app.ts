@@ -2,11 +2,13 @@ import cors from "cors";
 import express from "express";
 
 import { resolveCurrentUser } from "./middleware/auth";
+import activityEventsRouter from "./routes/activity-events";
 import approvalsRouter from "./routes/approvals";
 import auditLogsRouter from "./routes/audit";
 import healthRouter from "./routes/health";
 import releasesRouter from "./routes/releases";
 import sessionRouter from "./routes/session";
+import supportRisksRouter from "./routes/support-risks";
 import tenantsRouter from "./routes/tenants";
 import usersRouter from "./routes/users";
 
@@ -23,6 +25,8 @@ app.use(usersRouter);
 app.use(approvalsRouter);
 app.use(releasesRouter);
 app.use(auditLogsRouter);
+app.use(supportRisksRouter);
+app.use(activityEventsRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: "route not found", path: req.path });

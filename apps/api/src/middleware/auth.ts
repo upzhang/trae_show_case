@@ -3,12 +3,15 @@ import type { NextFunction, Request, Response } from "express";
 import { headerAsString } from "../lib/http";
 import { store } from "../store";
 
+import type { RoleCode } from "@trae/shared";
+
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       currentUserId?: string;
       currentTenantId?: string;
+      currentRoles?: RoleCode[];
     }
   }
 }
@@ -28,6 +31,7 @@ export function resolveCurrentUser(req: Request, _res: Response, next: NextFunct
   }
   req.currentUserId = user.id;
   req.currentTenantId = user.tenantId;
+  req.currentRoles = user.roles;
   next();
 }
 

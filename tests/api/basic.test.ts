@@ -83,6 +83,62 @@ describe("releases: contract drift", () => {
   });
 });
 
+describe("enterprise realism: tenants, risks, and activities", () => {
+  it("returns enriched tenant business profiles", async () => {
+    const request = (await import("supertest")).default(app);
+    const res = await request.get("/api/tenants").set("x-user-id", "u-platform");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(3);
+    expect(res.body[0]).toMatchObject({
+      industry: expect.any(String),
+      healthScore: expect.any(Number),
+      contractEndsAt: expect.any(String),
+      customerSuccessManager: expect.any(String),
+      seatsUsed: expect.any(Number),
+      seatsLimit: expect.any(Number),
+      monthlyActiveUsers: expect.any(Number),
+      arr: expect.any(Number)
+    });
+  });
+
+  it("requires tenant:view before returning support risk queue", async () => {
+    const request = (await import("supertest")).default(app);
+    const res = await request.get("/api/support-risks").set("x-user-id", "unknown-user");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns support risk queue for authorized users", async () => {
+    const request = (await import("supertest")).default(app);
+    const res = await request.get("/api/support-risks").set("x-user-id", "u-platform");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(5);
+    expect(res.body[0]).toMatchObject({
+      id: expect.any(String),
+      tenantId: expect.any(String),
+      title: expect.any(String),
+      severity: expect.stringMatching(/critical|high|medium|low/),
+      status: expect.stringMatching(/open|in_progress|waiting_customer|resolved/),
+      slaDueAt: expect.any(String),
+      ownerId: expect.any(String)
+    });
+  });
+
+  it("returns recent activity feed for authorized users", async () => {
+    const request = (await import("supertest")).default(app);
+    const res = await request.get("/api/activity-events").set("x-user-id", "u-platform");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(8);
+    expect(res.body[0]).toMatchObject({
+      id: expect.any(String),
+      tenantId: expect.any(String),
+      type: expect.stringMatching(/user|approval|release|audit|risk/),
+      title: expect.any(String),
+      actorId: expect.any(String),
+      createdAt: expect.any(String)
+    });
+  });
+});
+
 describe("users: roles permission", () => {
   // 预置缺陷 1 验证：tenant_admin 调用 PUT /api/users/:id/roles 能成功，
   // 但按 RBAC 矩阵该操作需要 role:edit（只有 platform_admin 拥有）

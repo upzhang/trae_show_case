@@ -10,7 +10,8 @@ const router = Router();
 
 router.get("/api/tenants", requirePermission("tenant:view"), (req, res) => {
   const tenants = listTenants();
-  if (req.currentTenantId) {
+  const canViewAllTenants = req.currentRoles?.includes("platform_admin") ?? false;
+  if (req.currentTenantId && !canViewAllTenants) {
     res.json(tenants.filter((item) => item.id === req.currentTenantId));
     return;
   }

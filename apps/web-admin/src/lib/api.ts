@@ -65,6 +65,37 @@ export interface TenantView {
   id: string;
   name: string;
   plan: "standard" | "enterprise";
+  industry: string;
+  healthScore: number;
+  contractEndsAt: string;
+  customerSuccessManager: string;
+  seatsUsed: number;
+  seatsLimit: number;
+  monthlyActiveUsers: number;
+  arr: number;
+}
+
+export interface SupportRiskView {
+  id: string;
+  tenantId: string;
+  title: string;
+  severity: "critical" | "high" | "medium" | "low";
+  status: "open" | "in_progress" | "waiting_customer" | "resolved";
+  slaDueAt: string;
+  ownerId: string;
+  category: "support" | "security" | "adoption" | "billing" | "release";
+  impact: string;
+  createdAt: string;
+}
+
+export interface ActivityEventView {
+  id: string;
+  tenantId: string;
+  type: "user" | "approval" | "release" | "audit" | "risk";
+  title: string;
+  actorId: string;
+  targetId?: string;
+  createdAt: string;
 }
 
 export const api = {
@@ -76,6 +107,8 @@ export const api = {
   listApprovals: () => request<ApprovalView[]>("/api/approvals"),
   listReleases: () => request<ReleaseView[]>("/api/releases"),
   listAuditLogs: () => request<AuditLogView[]>("/api/audit-logs"),
+  listSupportRisks: () => request<SupportRiskView[]>("/api/support-risks"),
+  listActivityEvents: () => request<ActivityEventView[]>("/api/activity-events"),
   approveApproval: (id: string) =>
     request<ApprovalView>(`/api/approvals/${id}/approve`, { method: "PUT" }),
   rejectApproval: (id: string) =>
