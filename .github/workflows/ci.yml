@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Unit & API tests
+        run: pnpm test
+      - name: Frontend build
+        run: pnpm build
+
+  # 预置缺陷 6 — CI 失败样本：
+  # 以下 job 会尝试使用 Node 18 运行含 import type 的 TS 文件，
+  # 若 tsc 配置未启用 NodeNext 或 module 配置不匹配，
+  # 就会在 Node 18 下出现 import.meta / import type 报错，属于可修复的 CI 配置问题。
+  legacy-node-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - run: node apps/api/src/server.ts

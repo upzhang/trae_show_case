@@ -1,0 +1,27 @@
+# MCP 接入示例
+
+本目录用于放置可选的 MCP（Model Context Protocol）接入配置。
+
+当前仓库建议的最小 MCP 能力：
+
+- 读取 `knowledge-base/` 中所有 Markdown 作为上下文
+- 读取 `.trae/rules/` 中的规范作为约束
+- 调用 `pnpm test:api` 查看最近测试结果
+- 调用 `pnpm typecheck` 查看类型错误
+
+下面是一个示例配置文件结构（非真实 MCP，仅演示）：
+
+```json
+{
+  "resources": [
+    { "path": "knowledge-base/**/*.md", "mode": "read" },
+    { "path": ".trae/**/*.md", "mode": "read" }
+  ],
+  "tools": [
+    { "name": "run-tests", "command": "pnpm test:api" },
+    { "name": "run-typecheck", "command": "pnpm typecheck" }
+  ]
+}
+```
+
+真实 MCP 配置请参考 Trae IDE 的项目级 MCP 说明。
