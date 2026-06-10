@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../lib/api";
+import { can } from "../lib/session";
 
 interface FeatureFlag {
   id: string;
@@ -15,13 +16,29 @@ interface FeatureFlag {
   updatedAt: string;
 }
 
+interface FeatureAuditEntry {
+  id: string;
+  featureKey: string;
+  actorId: string;
+  changeType: "created" | "updated" | "deleted" | "override_added" | "override_removed";
+  oldValue?: unknown;
+  newValue?: unknown;
+  createdAt: string;
+}
+
 export function FeaturesPage() {
   const [features, setFeatures] = useState<FeatureFlag[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showOverrideModal, setShowOverrideModal] = useState(false);
   const [selectedFeature, setSelectedFeature] = useState<FeatureFlag | null>(null);
-  const [newFeature, setNewFeature] = useState({
+  const [newFeature, setNewFeature] = useState<{
+    key: string;
+    name: string;
+    description: string;
+    type: FeatureFlag["type"];
+    defaultValue: unknown;
+  }>({
     key: "",
     name: "",
     description: "",
@@ -30,6 +47,10 @@ export function FeaturesPage() {
   });
   const [overrideValue, setOverrideValue] = useState("");
   const [overrideTenantId, setOverrideTenantId] = useState("");
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showOverrideListModal, setShowOverrideListModal] = useState(false);
+  const [historyEntries, setHistoryEntries] = useState<FeatureAuditEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
     fetchFeatures();
@@ -39,7 +60,7 @@ export function FeaturesPage() {
     setLoading(true);
     try {
       const response = await api.get("/features");
-      setFeatures(response.data);
+      setFeatures(response || []);
     } catch (error) {
       console.error("Failed to fetch features:", error);
     } finally {
@@ -100,6 +121,41 @@ export function FeaturesPage() {
     }
   }
 
+  async function handleShowHistory(feature: FeatureFlag) {
+    setSelectedFeature(feature);
+    setShowHistoryModal(true);
+    setHistoryLoading(true);
+    try {
+      const response = await api.get(`/features/${feature.key}/history`);
+      setHistoryEntries(response || []);
+    } catch (error) {
+      console.error("Failed to fetch feature history:", error);
+      setHistoryEntries([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function handleShowOverrideList(feature: FeatureFlag) {
+    setSelectedFeature(feature);
+    setShowOverrideListModal(true);
+  }
+
+  function getChangeTypeLabel(changeType: FeatureAuditEntry["changeType"]) {
+    const labels: Record<FeatureAuditEntry["changeType"], string> = {
+      created: "创建",
+      updated: "更新",
+      deleted: "删除",
+      override_added: "添加覆盖",
+      override_removed: "移除覆盖"
+    };
+    return labels[changeType];
+  }
+
+  const totalFeatures = features.length;
+  const enabledFeatures = features.filter((f) => f.isEnabled).length;
+  const rolloutFeatures = features.filter((f) => (f.rolloutPercentage ?? 0) > 0 && (f.rolloutPercentage ?? 0) < 100).length;
+
   function getTypeLabel(type: FeatureFlag["type"]) {
     const labels = { boolean: "布尔", number: "数字", string: "字符串", select: "选择" };
     return labels[type];
@@ -120,9 +176,32 @@ export function FeaturesPage() {
     <div className="page-container">
       <div className="page-header">
         <h1>功能开关管理</h1>
-        <button onClick={() => setShowCreateModal(true)} className="btn-primary">
-          创建功能开关
-        </button>
+        <div className="page-header-actions">
+          {can("feature:manage") && (
+            <button onClick={() => setShowCreateModal(true)} className="btn-primary">
+              创建功能开关
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="stat-grid">
+        <div className="stat-card">
+          <div className="label">总开关数</div>
+          <div className="value">{totalFeatures}</div>
+        </div>
+        <div className="stat-card">
+          <div className="label">已启用</div>
+          <div className="value">{enabledFeatures}</div>
+        </div>
+        <div className="stat-card">
+          <div className="label">灰度中</div>
+          <div className="value">{rolloutFeatures}</div>
+        </div>
+        <div className="stat-card">
+          <div className="label">禁用数</div>
+          <div className="value">{totalFeatures - enabledFeatures}</div>
+        </div>
       </div>
 
       {loading ? (
@@ -155,17 +234,42 @@ export function FeaturesPage() {
                     </span>
                   </td>
                   <td>
-                    {feature.rolloutPercentage !== undefined ? `${feature.rolloutPercentage}%` : "-"}
+                    {feature.rolloutPercentage !== undefined && feature.rolloutPercentage > 0 ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <div className="progress-bar progress-sm" style={{ width: "80px" }}>
+                          <div
+                            className={`progress-fill ${feature.rolloutPercentage >= 100 ? "progress-green" : feature.rolloutPercentage >= 50 ? "progress-blue" : "progress-orange"}`}
+                            style={{ width: `${feature.rolloutPercentage}%` }}
+                          />
+                        </div>
+                        <span style={{ fontSize: "12px", color: "#6b7280" }}>{feature.rolloutPercentage}%</span>
+                      </div>
+                    ) : (
+                      "-"
+                    )}
                   </td>
                   <td>
-                    {feature.tenantOverrides?.length || 0}
+                    <button
+                      onClick={() => handleShowOverrideList(feature)}
+                      className="btn-link"
+                      style={{ fontSize: "13px" }}
+                    >
+                      {feature.tenantOverrides?.length || 0} 个覆盖
+                    </button>
                   </td>
                   <td className="actions">
-                    <button onClick={() => handleToggle(feature)} className="btn-secondary">
-                      {feature.isEnabled ? "禁用" : "启用"}
-                    </button>
-                    <button onClick={() => { setSelectedFeature(feature); setShowOverrideModal(true); }} className="btn-secondary">
-                      添加覆盖
+                    {can("feature:manage") && (
+                      <button onClick={() => handleToggle(feature)} className="btn-secondary">
+                        {feature.isEnabled ? "禁用" : "启用"}
+                      </button>
+                    )}
+                    {can("feature:manage") && (
+                      <button onClick={() => { setSelectedFeature(feature); setShowOverrideModal(true); }} className="btn-secondary">
+                        添加覆盖
+                      </button>
+                    )}
+                    <button onClick={() => handleShowHistory(feature)} className="btn-secondary">
+                      历史
                     </button>
                   </td>
                 </tr>
@@ -309,6 +413,116 @@ export function FeaturesPage() {
               <button onClick={handleAddOverride} className="btn-primary">
                 添加
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showOverrideListModal && selectedFeature && (
+        <div className="modal-overlay" onClick={() => setShowOverrideListModal(false)}>
+          <div className="modal modal-md" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">租户覆盖列表 - {selectedFeature.name}</h2>
+              <button className="modal-close" onClick={() => setShowOverrideListModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              {selectedFeature.tenantOverrides && selectedFeature.tenantOverrides.length > 0 ? (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>租户 ID</th>
+                      <th>覆盖值</th>
+                      <th>创建时间</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedFeature.tenantOverrides.map((override) => (
+                      <tr key={override.tenantId}>
+                        <td className="mono">{override.tenantId}</td>
+                        <td>{String(override.value)}</td>
+                        <td>{new Date(override.createdAt).toLocaleString()}</td>
+                        <td>
+                          <button
+                            onClick={() => {
+                              handleRemoveOverride(selectedFeature!, override.tenantId);
+                              if (selectedFeature!.tenantOverrides!.length <= 1) {
+                                setShowOverrideListModal(false);
+                              }
+                            }}
+                            className="btn-danger btn-sm"
+                          >
+                            删除
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="empty-state">
+                  <div className="empty-state-title">暂无租户覆盖</div>
+                  <div className="empty-state-desc">该功能开关尚未配置任何租户级别的值覆盖</div>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button onClick={() => setShowOverrideListModal(false)} className="btn-secondary">关闭</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHistoryModal && selectedFeature && (
+        <div className="modal-overlay" onClick={() => setShowHistoryModal(false)}>
+          <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">变更历史 - {selectedFeature.name}</h2>
+              <button className="modal-close" onClick={() => setShowHistoryModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              {historyLoading ? (
+                <div className="loading">加载中...</div>
+              ) : historyEntries.length > 0 ? (
+                <div className="timeline">
+                  {historyEntries.map((entry) => (
+                    <div key={entry.id} className="timeline-item">
+                      <div className="timeline-dot" />
+                      <div className="timeline-content">
+                        <div className="timeline-title">
+                          <span className={`badge ${entry.changeType === "deleted" ? "badge-danger" : entry.changeType === "created" ? "badge-success" : "badge-info"}`}>
+                            {getChangeTypeLabel(entry.changeType)}
+                          </span>
+                          <span style={{ marginLeft: "8px", fontSize: "13px", color: "#6b7280" }}>
+                            操作人: {entry.actorId}
+                          </span>
+                        </div>
+                        {entry.oldValue !== undefined && (
+                          <div className="timeline-desc">
+                            旧值: {String(entry.oldValue)}
+                          </div>
+                        )}
+                        {entry.newValue !== undefined && (
+                          <div className="timeline-desc">
+                            新值: {String(entry.newValue)}
+                          </div>
+                        )}
+                        <div className="timeline-time">
+                          {new Date(entry.createdAt).toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <div className="empty-state-title">暂无变更记录</div>
+                  <div className="empty-state-desc">该功能开关尚未有任何变更历史</div>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button onClick={() => setShowHistoryModal(false)} className="btn-secondary">关闭</button>
             </div>
           </div>
         </div>

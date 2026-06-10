@@ -44,9 +44,23 @@ export class ValidationError extends AppError {
   }
 }
 
+export class BadRequestError extends ValidationError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, details);
+    this.name = "BadRequestError";
+  }
+}
+
 export class NotFoundError extends AppError {
-  constructor(errorCode: ErrorCode, message: string, details?: Record<string, unknown>) {
-    super(errorCode, message, 404, details);
+  constructor(message: string, details?: Record<string, unknown>);
+  constructor(errorCode: ErrorCode, message: string, details?: Record<string, unknown>);
+  constructor(errorCodeOrMessage: ErrorCode | string, messageOrDetails?: string | Record<string, unknown>, details?: Record<string, unknown>) {
+    const hasExplicitCode = typeof messageOrDetails === "string";
+    const errorCode = hasExplicitCode ? errorCodeOrMessage as ErrorCode : "NOT_FOUND";
+    const message = hasExplicitCode ? messageOrDetails : errorCodeOrMessage;
+    const resolvedDetails = hasExplicitCode ? details : messageOrDetails as Record<string, unknown> | undefined;
+
+    super(errorCode, message, 404, resolvedDetails);
     this.name = "NotFoundError";
   }
 }
@@ -200,6 +214,9 @@ export function isAppError(error: unknown): error is AppError {
 export function getHttpStatus(error: unknown): number {
   if (isAppError(error)) {
     return error.httpStatus;
+  }
+  if (error instanceof Error && "statusCode" in error && typeof (error as Record<string, unknown>).statusCode === "number") {
+    return (error as Record<string, number>).statusCode;
   }
   return 500;
 }

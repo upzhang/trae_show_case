@@ -16,12 +16,20 @@ const tenantNames = [
   "Infinity 无限科技", "Jade 翡翠传媒", "Kingdom 王国集团", "Luna 月球科技"
 ];
 
+const tenantIds = [
+  "tenant-acme", "tenant-orbit", "tenant-nova", "tenant-nexus",
+  "tenant-pivot", "tenant-helios", "tenant-verdant", "tenant-quantum",
+  "tenant-aurora", "tenant-bluesky", "tenant-cybertech", "tenant-dataflow",
+  "tenant-eagleeye", "tenant-futurewave", "tenant-goldengate", "tenant-horizon",
+  "tenant-infinity", "tenant-jade", "tenant-kingdom", "tenant-luna"
+];
+
 const industries = ["高端制造", "金融 SaaS", "连锁零售", "医疗健康", "新能源", "航空航天", "现代农业", "软件服务", "物流运输", "网络安全"];
-const plans = ["enterprise", "standard"];
+const plans = ["enterprise", "standard"] as const;
 const csms = ["林墨", "周然", "陈屿", "方澜", "苏嘉宁"];
 
 export const tenants: Tenant[] = tenantNames.map((name, index) => ({
-  id: `tenant-${name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")}`,
+  id: tenantIds[index],
   name,
   plan: plans[index % plans.length],
   industry: industries[index % industries.length],
@@ -41,23 +49,69 @@ const userNames = [
   "何勇", "高磊", "罗燕", "林涛", "钟华", "梁伟", "宋敏", "许强", "邓丽", "韩杰"
 ];
 
-const roles = ["tenant_admin", "member", "auditor", "release_manager"];
+const roles = ["tenant_admin", "member", "auditor", "release_manager"] as const;
+
+// Pinyin mapping for Chinese names used in email generation
+const namePinyin: Record<string, string> = {
+  "苏嘉宁": "sujianing", "林墨": "linmo", "周然": "zhouran", "陈屿": "chenyu",
+  "方澜": "fanglan", "谢之": "xiezhi", "唐砚": "tangyan", "柯澜": "kelan",
+  "白川": "baichuan", "沈砚": "shenyan", "江云": "jiangyun", "苏岚": "sulan",
+  "方墨": "fangmo", "郑衡": "zhenheng", "李悦": "liyue", "王浩": "wanghao",
+  "张明": "zhangming", "刘芳": "liufang", "陈伟": "chenwei", "刘洋": "liuyang",
+  "杨帆": "yangfan", "赵静": "zhaojing", "黄丽": "huangli", "吴强": "wuqiang",
+  "徐敏": "xumin", "孙伟": "sunwei", "马丽": "mali", "朱军": "zhujun",
+  "胡杰": "hujie", "郭英": "guoying", "何勇": "heyong", "高磊": "gaolei",
+  "罗燕": "luoyan", "林涛": "lintao", "钟华": "zhonghua", "梁伟": "liangwei",
+  "宋敏": "songmin", "许强": "xuqiang", "邓丽": "dengli", "韩杰": "hanjie",
+};
+
+// Extract English tenant name from full name (e.g., "Acme 精密制造" → "acme")
+function getTenantEnglishName(tenantName: string): string {
+  return tenantName.split(" ")[0].toLowerCase();
+}
 
 export const users: User[] = [];
+let userNameIndex = 0;
+
+// Generate users for each tenant: 4 roles × 2-3 users = 8-12 users per tenant
 tenants.forEach((tenant) => {
-  const tenantRoleCount = Math.floor(Math.random() * 3) + 2;
-  for (let i = 0; i < tenantRoleCount; i++) {
-    const baseIndex = (tenants.indexOf(tenant) * 4 + i) % userNames.length;
-    const role = roles[i % roles.length];
-    users.push({
-      id: `u-${tenant.id}-${role}-${i}`,
-      tenantId: tenant.id,
-      name: userNames[baseIndex],
-      email: `${userNames[baseIndex].toLowerCase().replace(/\s+/g, "")}@${tenant.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")}.example.com`,
-      roles: [role],
-      isActive: Math.random() > 0.1
-    });
-  }
+  const tenantEnglishName = getTenantEnglishName(tenant.name);
+
+  roles.forEach((role) => {
+    // Deterministic user count per role: 2 or 3 based on name+role length
+    const userCount = (Math.abs(tenant.name.length + role.length) % 2) + 2;
+    for (let i = 0; i < userCount; i++) {
+      const name = userNames[userNameIndex % userNames.length];
+      const pinyin = namePinyin[name] || name.toLowerCase().replace(/\s+/g, "");
+      users.push({
+        id: `u-${tenant.id}-${role}-${i}`,
+        tenantId: tenant.id,
+        name,
+        email: `${pinyin}@${tenantEnglishName}.example.com`,
+        roles: [role],
+        isActive: true,
+      });
+      userNameIndex++;
+    }
+  });
+});
+
+// Add 5 platform_admin users spread across different tenants
+const platformAdminTenants = ["tenant-acme", "tenant-orbit", "tenant-nova", "tenant-nexus", "tenant-pivot"];
+platformAdminTenants.forEach((tenantId, idx) => {
+  const name = userNames[userNameIndex % userNames.length];
+  const pinyin = namePinyin[name] || name.toLowerCase().replace(/\s+/g, "");
+  const tenant = tenants.find(t => t.id === tenantId)!;
+  const tenantEnglishName = getTenantEnglishName(tenant.name);
+  users.push({
+    id: `u-${tenantId}-platform_admin-${idx}`,
+    tenantId,
+    name,
+    email: `${pinyin}@${tenantEnglishName}.example.com`,
+    roles: ["platform_admin"],
+    isActive: true,
+  });
+  userNameIndex++;
 });
 
 users.push({
@@ -66,6 +120,33 @@ users.push({
   name: "平台管理员",
   email: "platform@example.com",
   roles: ["platform_admin"],
+  isActive: true
+});
+
+users.push({
+  id: "u-tenant-admin",
+  tenantId: "tenant-acme",
+  name: "租户管理员",
+  email: "tenant-admin@example.com",
+  roles: ["tenant_admin"],
+  isActive: true
+});
+
+users.push({
+  id: "u-auditor",
+  tenantId: "tenant-acme",
+  name: "审计员",
+  email: "auditor@example.com",
+  roles: ["auditor"],
+  isActive: true
+});
+
+users.push({
+  id: "u-release",
+  tenantId: "tenant-acme",
+  name: "发布管理员",
+  email: "release@example.com",
+  roles: ["release_manager"],
   isActive: true
 });
 
@@ -98,8 +179,8 @@ for (let i = 0; i < 50; i++) {
   });
 }
 
-const environments: ReleaseRecord["environment"][] = ["production", "staging", "development"];
-const releaseStatuses: ReleaseRecord["status"][] = ["pending", "deployed", "rolled_back", "failed"];
+const environments: ReleaseRecord["environment"][] = ["production", "staging"];
+const releaseStatuses: ReleaseRecord["status"][] = ["pending", "deployed", "rolled_back"];
 
 export const releases: ReleaseRecord[] = [];
 for (let i = 0; i < 80; i++) {
@@ -188,7 +269,7 @@ for (let i = 0; i < 40; i++) {
   });
 }
 
-const eventTypes: ActivityEvent["type"][] = ["risk", "approval", "release", "user", "audit", "tenant"];
+const eventTypes: ActivityEvent["type"][] = ["risk", "approval", "release", "user", "audit", "ticket"];
 
 export const activityEvents: ActivityEvent[] = [];
 for (let i = 0; i < 180; i++) {
@@ -210,8 +291,8 @@ for (let i = 0; i < 180; i++) {
     case "user":
       title = `${Math.random() > 0.5 ? "新增用户" : "用户权限更新"}`;
       break;
-    case "tenant":
-      title = `${Math.random() > 0.5 ? "租户信息更新" : "席位调整"}`;
+    case "ticket":
+      title = `${Math.random() > 0.5 ? "工单已创建" : "工单状态更新"}`;
       break;
     case "audit":
       title = `审计记录: ${auditActions[i % auditActions.length]}`;

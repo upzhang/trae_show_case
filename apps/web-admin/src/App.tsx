@@ -4,19 +4,21 @@ import { NavLink, Route, Routes } from "react-router-dom";
 import ApprovalsPage from "./pages/ApprovalsPage";
 import AuditLogsPage from "./pages/AuditLogsPage";
 import DashboardPage from "./pages/DashboardPage";
-import FeaturesPage from "./pages/FeaturesPage";
-import IntegrationsPage from "./pages/IntegrationsPage";
+import { FeaturesPage } from "./pages/FeaturesPage";
+import { IntegrationsPage } from "./pages/IntegrationsPage";
 import ReleasesPage from "./pages/ReleasesPage";
 import SupportRisksPage from "./pages/SupportRisksPage";
-import TeamsPage from "./pages/TeamsPage";
+import { TeamsPage } from "./pages/TeamsPage";
 import TenantsPage from "./pages/TenantsPage";
-import TicketsPage from "./pages/TicketsPage";
-import TokensPage from "./pages/TokensPage";
+import { TicketsPage } from "./pages/TicketsPage";
+import { TokensPage } from "./pages/TokensPage";
 import UsersPage from "./pages/UsersPage";
-import WebhooksPage from "./pages/WebhooksPage";
-import SubscriptionsPage from "./pages/SubscriptionsPage";
-import InvoicesPage from "./pages/InvoicesPage";
-import NotificationsPage from "./pages/NotificationsPage";
+import { WebhooksPage } from "./pages/WebhooksPage";
+import { SubscriptionsPage } from "./pages/SubscriptionsPage";
+import { InvoicesPage } from "./pages/InvoicesPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
+import { MetricsPage } from "./pages/MetricsPage";
+import { RolesPage } from "./pages/RolesPage";
 import { api } from "./lib/api";
 import { getCurrentUserId, setCurrentUserId } from "./lib/session";
 
@@ -28,6 +30,7 @@ export default function App() {
   const [emailInput, setEmailInput] = useState("");
 
   useEffect(() => {
+    setCurrentUserId(userId, []);
     api
       .me()
       .then((view) => {
@@ -58,6 +61,7 @@ export default function App() {
         <NavLink to="/" end>工作台 / 总览</NavLink>
         <NavLink to="/tenants">客户 / 租户</NavLink>
         <NavLink to="/users">用户与权限</NavLink>
+        <NavLink to="/roles" className="sub-nav">角色权限</NavLink>
         <NavLink to="/teams">团队管理</NavLink>
         <div className="sidebar-section">运营</div>
         <NavLink to="/approvals">审批中心</NavLink>
@@ -74,6 +78,8 @@ export default function App() {
         <NavLink to="/integrations">系统集成</NavLink>
         <NavLink to="/tokens">API Token</NavLink>
         <NavLink to="/features">功能开关</NavLink>
+        <div className="sidebar-section">系统</div>
+        <NavLink to="/metrics">数据分析</NavLink>
       </aside>
       <main className="main">
         <div className="page-header">
@@ -125,6 +131,8 @@ export default function App() {
           <Route path="/features" element={<FeaturesPage />} />
           <Route path="/subscriptions" element={<SubscriptionsPage />} />
           <Route path="/invoices" element={<InvoicesPage />} />
+          <Route path="/metrics" element={<MetricsPage />} />
+          <Route path="/roles" element={<RolesPage />} />
         </Routes>
       </main>
     </div>

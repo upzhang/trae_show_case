@@ -1,3 +1,4 @@
+import { describe, it, expect } from "vitest";
 import request from "supertest";
 import app from "../../apps/api/src/app";
 
@@ -377,5 +378,123 @@ describe("Teams API", () => {
     
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
+  });
+});
+
+describe("Teams API - 边界与异常路径", () => {
+  const HEADERS = { "x-user-id": "u-platform", "x-tenant-id": "tenant-acme" };
+
+  describe("POST /api/teams - 缺少必填字段", () => {
+    it("should return 400 when body is empty", async () => {
+      const response = await request(app)
+        .post("/api/teams")
+        .set(HEADERS)
+        .send({});
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should return 400 when name is empty string", async () => {
+      const response = await request(app)
+        .post("/api/teams")
+        .set(HEADERS)
+        .send({ name: "", description: "test" });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should return 400 when name exceeds 100 characters", async () => {
+      const response = await request(app)
+        .post("/api/teams")
+        .set(HEADERS)
+        .send({ name: "a".repeat(101), description: "test" });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should return 400 when description exceeds 500 characters", async () => {
+      const response = await request(app)
+        .post("/api/teams")
+        .set(HEADERS)
+        .send({ name: "Valid Name", description: "x".repeat(501) });
+
+      expect(response.status).toBe(400);
+    });
+  });
+
+  describe("PUT /api/teams/:id - 更新不存在的团队", () => {
+    it("should return 404 when updating non-existent team", async () => {
+      const response = await request(app)
+        .put("/api/teams/non-existent-id")
+        .set(HEADERS)
+        .send({ name: "Updated", description: "test" });
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("DELETE /api/teams/:id - 删除不存在的团队", () => {
+    it("should return 404 when deleting non-existent team", async () => {
+      const response = await request(app)
+        .delete("/api/teams/non-existent-id")
+        .set(HEADERS);
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /api/teams/:id/members - 添加成员到不存在的团队", () => {
+    it("should return 404 when adding member to non-existent team", async () => {
+      const response = await request(app)
+        .post("/api/teams/non-existent-id/members")
+        .set(HEADERS)
+        .send({ userId: "u-platform", role: "member" });
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("DELETE /api/teams/:id/members/:userId - 移除不存在的成员", () => {
+    it("should return 404 when removing member from non-existent team", async () => {
+      const response = await request(app)
+        .delete("/api/teams/non-existent-id/members/u-platform")
+        .set(HEADERS);
+
+      expect(response.status).toBe(404);
+    });
+
+    it("should return 404 when removing non-existent member from existing team", async () => {
+      const createResponse = await request(app)
+        .post("/api/teams")
+        .set(HEADERS)
+        .send({ name: "Team For Member Removal Test" });
+
+      const response = await request(app)
+        .delete(`/api/teams/${createResponse.body.id}/members/non-existent-user`)
+        .set(HEADERS);
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /api/teams/:id/members - 重复添加同一成员", () => {
+    it("should return 400 when adding duplicate member", async () => {
+      const createResponse = await request(app)
+        .post("/api/teams")
+        .set(HEADERS)
+        .send({ name: "Duplicate Add Test" });
+
+      await request(app)
+        .post(`/api/teams/${createResponse.body.id}/members`)
+        .set(HEADERS)
+        .send({ userId: "u-tenant-admin", role: "member" });
+
+      const response = await request(app)
+        .post(`/api/teams/${createResponse.body.id}/members`)
+        .set(HEADERS)
+        .send({ userId: "u-tenant-admin", role: "admin" });
+
+      expect(response.status).toBe(400);
+    });
   });
 });

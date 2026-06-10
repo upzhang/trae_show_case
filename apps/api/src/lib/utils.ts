@@ -85,7 +85,7 @@ export function omit<T, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
   return result;
 }
 
-export function pick<T, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> {
+export function pick<T extends Record<string, unknown>, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> {
   const result = {} as Pick<T, K>;
   keys.forEach(key => {
     if (key in obj) {
@@ -791,12 +791,12 @@ export function defineProperties<T>(obj: T, descriptors: Record<string, Property
   return obj;
 }
 
-export function assignObject<T>(target: T, ...sources: Partial<T>[]): T {
+export function assignObject<T extends object>(target: T, ...sources: Partial<T>[]): T {
   return Object.assign(target, ...sources);
 }
 
-export function createObject<T>(prototype: object, properties?: PropertyDescriptorMap): T {
-  return Object.create(prototype, properties) as T;
+export function createObject<T>(prototype: object, properties?: PropertyDescriptorMap & ThisType<T>): T {
+  return Object.create(prototype, properties as PropertyDescriptorMap) as T;
 }
 
 export function getPrototypeOf(obj: unknown): object | null {
@@ -808,7 +808,7 @@ export function setPrototypeOf<T>(obj: T, prototype: object | null): T {
   return obj;
 }
 
-export function isPrototypeOf(prototype: object, obj: unknown): boolean {
+export function isPrototypeOf(prototype: object, obj: object): boolean {
   return prototype.isPrototypeOf(obj);
 }
 
@@ -959,7 +959,7 @@ export function invertObject<T extends string | number | symbol>(obj: Record<str
   return result;
 }
 
-export function pickObject<T, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> {
+export function pickObject<T extends Record<string, unknown>, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> {
   const result = {} as Pick<T, K>;
   keys.forEach(key => {
     if (key in obj) {
@@ -969,16 +969,16 @@ export function pickObject<T, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> 
   return result;
 }
 
-export function omitObject<T, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
+export function omitObject<T extends Record<string, unknown>, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
   const result = { ...obj } as Omit<T, K>;
   keys.forEach(key => {
-    delete result[key as unknown as keyof Omit<T, K>];
+    delete (result as Record<string, unknown>)[key as string];
   });
   return result;
 }
 
 export function withoutObject<T>(obj: T, keys: (keyof T)[]): T {
-  return omitObject(obj, keys);
+  return omitObject(obj as Record<string, unknown>, keys as string[]) as unknown as T;
 }
 
 export function defaultsObject<T extends Record<string, unknown>>(obj: T, defaults: Partial<T>): T {
@@ -1087,9 +1087,9 @@ export function flattenArray<T>(array: T[][]): T[] {
 }
 
 export function flattenDeepArray<T>(array: unknown[]): T[] {
-  return array.reduce((acc, item) => {
+  return array.reduce((acc: T[], item) => {
     if (Array.isArray(item)) {
-      return [...acc, ...flattenDeepArray(item)];
+      return [...acc, ...flattenDeepArray<T>(item)];
     }
     return [...acc, item as T];
   }, [] as T[]);
@@ -1183,12 +1183,12 @@ export function sliceArray<T>(array: T[], start: number, end?: number): T[] {
   return array.slice(start, end);
 }
 
-export function spliceArray<T>(array: T[], start: number, deleteCount?: number, ...items: T[]): T[] {
+export function spliceArray<T>(array: T[], start: number, deleteCount: number = 0, ...items: T[]): T[] {
   return array.splice(start, deleteCount, ...items);
 }
 
 export function concatArrays<T>(...arrays: T[][]): T[] {
-  return [].concat(...arrays);
+  return ([] as T[]).concat(...arrays);
 }
 
 export function fillArray<T>(array: T[], value: T, start: number = 0, end?: number): T[] {

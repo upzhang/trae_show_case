@@ -1,3 +1,4 @@
+import { describe, it, expect } from "vitest";
 import request from "supertest";
 import app from "../../apps/api/src/app";
 
@@ -346,6 +347,130 @@ describe("Tokens API", () => {
         token: createResponse.body.token
       });
     
+    expect(response.status).toBe(200);
+    expect(response.body.valid).toBe(false);
+  });
+});
+
+describe("Tokens API - Edge Cases", () => {
+  const HEADERS = { "x-user-id": "u-platform", "x-tenant-id": "tenant-acme" };
+
+  it("should return 400 when creating token with empty name string", async () => {
+    const response = await request(app)
+      .post("/api/tokens")
+      .set(HEADERS)
+      .send({ name: "", scopes: ["read"] });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating token with empty scopes array", async () => {
+    const response = await request(app)
+      .post("/api/tokens")
+      .set(HEADERS)
+      .send({ name: "Test Token", scopes: [] });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating token with completely empty body", async () => {
+    const response = await request(app)
+      .post("/api/tokens")
+      .set(HEADERS)
+      .send({});
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 404 when updating non-existent token", async () => {
+    const response = await request(app)
+      .put("/api/tokens/non-existent-token-id")
+      .set(HEADERS)
+      .send({ name: "Updated", scopes: ["read"] });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 404 when patching non-existent token", async () => {
+    const response = await request(app)
+      .patch("/api/tokens/non-existent-token-id")
+      .set(HEADERS)
+      .send({ name: "Patched" });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating token with invalid expiresAt format", async () => {
+    const response = await request(app)
+      .post("/api/tokens")
+      .set(HEADERS)
+      .send({ name: "Bad Date", scopes: ["read"], expiresAt: "not-a-valid-date" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating token with empty string expiresAt", async () => {
+    const response = await request(app)
+      .post("/api/tokens")
+      .set(HEADERS)
+      .send({ name: "Empty Date", scopes: ["read"], expiresAt: "" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating token with scope 'delete' (not in enum)", async () => {
+    const response = await request(app)
+      .post("/api/tokens")
+      .set(HEADERS)
+      .send({ name: "Bad Scope", scopes: ["delete"] });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating token with scope 'super_admin' (not in enum)", async () => {
+    const response = await request(app)
+      .post("/api/tokens")
+      .set(HEADERS)
+      .send({ name: "Bad Scope", scopes: ["super_admin"] });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating token with mixed valid and invalid scopes", async () => {
+    const response = await request(app)
+      .post("/api/tokens")
+      .set(HEADERS)
+      .send({ name: "Mixed Scopes", scopes: ["read", "invalid_scope"] });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating token with scopes as string instead of array", async () => {
+    const response = await request(app)
+      .post("/api/tokens")
+      .set(HEADERS)
+      .send({ name: "String Scopes", scopes: "read" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 404 when validating with empty token body", async () => {
+    const response = await request(app)
+      .post("/api/tokens/validate")
+      .set(HEADERS)
+      .send({});
+
     expect(response.status).toBe(200);
     expect(response.body.valid).toBe(false);
   });

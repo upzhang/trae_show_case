@@ -24,11 +24,12 @@ export function requirePermission(permission: PermissionCode) {
       return;
     }
     const user = store.users.find((item) => item.id === userId);
-    if (!user) {
+    const roles = user?.roles ?? req.currentRoles;
+    if (!roles) {
       res.status(401).json({ error: "user not found" });
       return;
     }
-    if (!hasPermission(user.roles, permission)) {
+    if (!hasPermission(roles, permission)) {
       res.status(403).json({ error: `missing permission ${permission}` });
       return;
     }

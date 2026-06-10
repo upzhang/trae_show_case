@@ -88,7 +88,7 @@ describe("enterprise realism: tenants, risks, and activities", () => {
     const request = (await import("supertest")).default(app);
     const res = await request.get("/api/tenants").set("x-user-id", "u-platform");
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(3);
+    expect(res.body).toHaveLength(20);
     expect(res.body[0]).toMatchObject({
       industry: expect.any(String),
       healthScore: expect.any(Number),
@@ -111,7 +111,7 @@ describe("enterprise realism: tenants, risks, and activities", () => {
     const request = (await import("supertest")).default(app);
     const res = await request.get("/api/support-risks").set("x-user-id", "u-platform");
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(5);
+    expect(res.body).toHaveLength(40);
     expect(res.body[0]).toMatchObject({
       id: expect.any(String),
       tenantId: expect.any(String),
@@ -127,7 +127,7 @@ describe("enterprise realism: tenants, risks, and activities", () => {
     const request = (await import("supertest")).default(app);
     const res = await request.get("/api/activity-events").set("x-user-id", "u-platform");
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(8);
+    expect(res.body).toHaveLength(180);
     expect(res.body[0]).toMatchObject({
       id: expect.any(String),
       tenantId: expect.any(String),
@@ -163,5 +163,90 @@ describe("audit logs: empty summary", () => {
     const logs = res.body as Array<{ action: string; summary: string }>;
     const hasDeploy = logs.some((item) => item.action === "release.deployed");
     expect(hasDeploy).toBe(true);
+  });
+});
+
+describe("authentication: missing headers", () => {
+  it("returns 401 when no x-user-id header on protected endpoint", async () => {
+    const request = (await import("supertest")).default(app);
+    const res = await request.get("/api/users");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 401 when no x-user-id header on tenant endpoint", async () => {
+    const request = (await import("supertest")).default(app);
+    const res = await request.get("/api/tenants");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 401 when no x-user-id header on approvals endpoint", async () => {
+    const request = (await import("supertest")).default(app);
+    const res = await request.get("/api/approvals");
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("tenant: invalid tenant-id", () => {
+  it("returns 404 for non-existent tenant detail", async () => {
+    const request = (await import("supertest")).default(app);
+    const res = await request
+      .get("/api/tenants/non-existent-tenant-id")
+      .set("x-user-id", "u-platform");
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 404 for non-existent tenant plan update", async () => {
+    const request = (await import("supertest")).default(app);
+    const res = await request
+      .put("/api/tenants/non-existent-tenant-id/plan")
+      .set("x-user-id", "u-platform")
+      .send({ plan: "enterprise" });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("concurrent requests", () => {
+  it("handles multiple concurrent health checks", async () => {
+    const request = (await import("supertest")).default(app);
+    const results = await Promise.all(
+      Array.from({ length: 10 }, () => request.get("/health"))
+    );
+    results.forEach((res) => {
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("now");
+    });
+  });
+
+  it("handles concurrent session requests with same user", async () => {
+    const request = (await import("supertest")).default(app);
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        request.get("/api/session/me").set("x-user-id", "u-platform")
+      )
+    );
+    results.forEach((res) => {
+      expect(res.status).toBe(200);
+      expect(res.body.email).toBe("platform@example.com");
+    });
+  });
+});
+
+describe("validation: empty request body", () => {
+  it("returns 400 when creating user with empty body", async () => {
+    const request = (await import("supertest")).default(app);
+    const res = await request
+      .post("/api/users")
+      .set("x-user-id", "u-platform")
+      .send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when creating approval with empty body", async () => {
+    const request = (await import("supertest")).default(app);
+    const res = await request
+      .post("/api/approvals")
+      .set("x-user-id", "u-platform")
+      .send({});
+    expect(res.status).toBe(400);
   });
 });

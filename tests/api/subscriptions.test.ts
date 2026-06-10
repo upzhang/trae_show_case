@@ -1,3 +1,4 @@
+import { describe, it, expect } from "vitest";
 import request from "supertest";
 import app from "../../apps/api/src/app";
 
@@ -384,5 +385,99 @@ describe("Subscriptions API", () => {
     expect(response.body).toHaveProperty("free");
     expect(response.body).toHaveProperty("pro");
     expect(response.body).toHaveProperty("enterprise");
+  });
+});
+
+describe("Subscriptions API - 边界与异常路径", () => {
+  const HEADERS = { "x-user-id": "u-platform", "x-tenant-id": "tenant-acme" };
+
+  describe("POST /api/subscriptions/:id/renew - 续费不存在的订阅", () => {
+    it("should return 404 when renewing non-existent subscription", async () => {
+      const response = await request(app)
+        .post("/api/subscriptions/non-existent-id/renew")
+        .set(HEADERS);
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /api/subscriptions/:id/upgrade - 升级不存在的订阅", () => {
+    it("should return 404 when upgrading non-existent subscription", async () => {
+      const response = await request(app)
+        .post("/api/subscriptions/non-existent-id/upgrade")
+        .set(HEADERS)
+        .send({ plan: "enterprise", seats: 50, monthlyRate: 4999 });
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /api/subscriptions/:id/downgrade - 降级不存在的订阅", () => {
+    it("should return 404 when downgrading non-existent subscription", async () => {
+      const response = await request(app)
+        .post("/api/subscriptions/non-existent-id/downgrade")
+        .set(HEADERS)
+        .send({ plan: "free", seats: 3, monthlyRate: 0 });
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /api/subscriptions/:id/cancel - 取消不存在的订阅", () => {
+    it("should return 404 when cancelling non-existent subscription", async () => {
+      const response = await request(app)
+        .post("/api/subscriptions/non-existent-id/cancel")
+        .set(HEADERS);
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("GET /api/subscriptions/:id/history - 获取历史不存在的订阅", () => {
+    it("should return 404 when getting history of non-existent subscription", async () => {
+      const response = await request(app)
+        .get("/api/subscriptions/non-existent-id/history")
+        .set(HEADERS);
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /api/subscriptions - 无效计划名称", () => {
+    it("should return 400 when plan is not in allowed list", async () => {
+      const response = await request(app)
+        .post("/api/subscriptions")
+        .set(HEADERS)
+        .send({ tenantId: "tenant-acme", plan: "platinum", seats: 10, monthlyRate: 999 });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should return 400 when plan is empty string", async () => {
+      const response = await request(app)
+        .post("/api/subscriptions")
+        .set(HEADERS)
+        .send({ tenantId: "tenant-acme", plan: "", seats: 10, monthlyRate: 999 });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should return 400 when plan is null", async () => {
+      const response = await request(app)
+        .post("/api/subscriptions")
+        .set(HEADERS)
+        .send({ tenantId: "tenant-acme", plan: null, seats: 10, monthlyRate: 999 });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should return 400 when plan is numeric string", async () => {
+      const response = await request(app)
+        .post("/api/subscriptions")
+        .set(HEADERS)
+        .send({ tenantId: "tenant-acme", plan: "12345", seats: 10, monthlyRate: 999 });
+
+      expect(response.status).toBe(400);
+    });
   });
 });

@@ -1,3 +1,4 @@
+import { describe, it, expect } from "vitest";
 import request from "supertest";
 import app from "../../apps/api/src/app";
 
@@ -420,5 +421,173 @@ describe("Features API", () => {
       });
     
     expect(response.status).toBe(400);
+  });
+});
+
+describe("Features API — missing required fields", () => {
+  it("should return 400 when creating feature without key", async () => {
+    const response = await request(app)
+      .post("/api/features")
+      .set("X-Tenant-ID", "tenant-acme")
+      .set("X-User-ID", "u-platform")
+      .send({
+        name: "No Key Feature",
+        type: "feature"
+      });
+
+    expect(response.status).toBe(400);
+  });
+
+  it("should return 400 when creating feature without name", async () => {
+    const response = await request(app)
+      .post("/api/features")
+      .set("X-Tenant-ID", "tenant-acme")
+      .set("X-User-ID", "u-platform")
+      .send({
+        key: "no_name_feature",
+        type: "feature"
+      });
+
+    expect(response.status).toBe(400);
+  });
+
+  it("should return 400 when creating feature without type", async () => {
+    const response = await request(app)
+      .post("/api/features")
+      .set("X-Tenant-ID", "tenant-acme")
+      .set("X-User-ID", "u-platform")
+      .send({
+        key: "no_type_feature",
+        name: "No Type Feature"
+      });
+
+    expect(response.status).toBe(400);
+  });
+
+  it("should return 400 when creating feature with empty key", async () => {
+    const response = await request(app)
+      .post("/api/features")
+      .set("X-Tenant-ID", "tenant-acme")
+      .set("X-User-ID", "u-platform")
+      .send({
+        key: "",
+        name: "Empty Key",
+        type: "feature"
+      });
+
+    expect(response.status).toBe(400);
+  });
+});
+
+describe("Features API — non-existent resource", () => {
+  it("should return 404 when updating non-existent feature", async () => {
+    const response = await request(app)
+      .put("/api/features/non-existent-key")
+      .set("X-Tenant-ID", "tenant-acme")
+      .set("X-User-ID", "u-platform")
+      .send({
+        name: "Updated Name",
+        enabled: true
+      });
+
+    expect(response.status).toBe(404);
+  });
+
+  it("should return 404 when deleting non-existent feature", async () => {
+    const response = await request(app)
+      .delete("/api/features/non-existent-key")
+      .set("X-Tenant-ID", "tenant-acme")
+      .set("X-User-ID", "u-platform");
+
+    expect(response.status).toBe(404);
+  });
+
+  it("should return 404 when enabling non-existent feature", async () => {
+    const response = await request(app)
+      .post("/api/features/non-existent-key/enable")
+      .set("X-Tenant-ID", "tenant-acme")
+      .set("X-User-ID", "u-platform");
+
+    expect(response.status).toBe(404);
+  });
+
+  it("should return 404 when disabling non-existent feature", async () => {
+    const response = await request(app)
+      .post("/api/features/non-existent-key/disable")
+      .set("X-Tenant-ID", "tenant-acme")
+      .set("X-User-ID", "u-platform");
+
+    expect(response.status).toBe(404);
+  });
+
+  it("should return 404 when toggling non-existent feature", async () => {
+    const response = await request(app)
+      .post("/api/features/non-existent-key/toggle")
+      .set("X-Tenant-ID", "tenant-acme")
+      .set("X-User-ID", "u-platform");
+
+    expect(response.status).toBe(404);
+  });
+});
+
+describe("Features API — override edge cases", () => {
+  it("should return 404 when adding override to non-existent feature", async () => {
+    const response = await request(app)
+      .post("/api/features/non-existent-key/override")
+      .set("X-Tenant-ID", "tenant-acme")
+      .set("X-User-ID", "u-platform")
+      .send({
+        overrideTenantId: "tenant-acme",
+        value: true
+      });
+
+    expect(response.status).toBe(404);
+  });
+
+  it("should return 404 when deleting override from non-existent feature", async () => {
+    const response = await request(app)
+      .delete("/api/features/non-existent-key/override/tenant-acme")
+      .set("X-Tenant-ID", "tenant-acme")
+      .set("X-User-ID", "u-platform");
+
+    expect(response.status).toBe(404);
+  });
+});
+
+describe("Features API — batch operations", () => {
+  it("should get status for multiple features in one request", async () => {
+    const response = await request(app)
+      .get("/api/features/status?keys=new_ui,sso_enabled,audit_log_retention_days")
+      .set("X-Tenant-ID", "tenant-acme")
+      .set("X-User-ID", "u-platform");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveProperty("new_ui");
+    expect(response.body).toHaveProperty("sso_enabled");
+    expect(response.body).toHaveProperty("audit_log_retention_days");
+    expect(typeof response.body.new_ui).toBe("boolean");
+    expect(typeof response.body.sso_enabled).toBe("boolean");
+    expect(typeof response.body.audit_log_retention_days).toBe("boolean");
+  });
+
+  it("should return false for non-existent keys in batch status", async () => {
+    const response = await request(app)
+      .get("/api/features/status?keys=new_ui,non_existent_key")
+      .set("X-Tenant-ID", "tenant-acme")
+      .set("X-User-ID", "u-platform");
+
+    expect(response.status).toBe(200);
+    expect(response.body.new_ui).toBe(true);
+    expect(response.body.non_existent_key).toBe(false);
+  });
+
+  it("should handle empty keys parameter in batch status", async () => {
+    const response = await request(app)
+      .get("/api/features/status?keys=")
+      .set("X-Tenant-ID", "tenant-acme")
+      .set("X-User-ID", "u-platform");
+
+    expect(response.status).toBe(200);
+    expect(Object.keys(response.body).length).toBe(0);
   });
 });

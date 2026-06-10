@@ -1,3 +1,4 @@
+import { describe, it, expect } from "vitest";
 import request from "supertest";
 import app from "../../apps/api/src/app";
 
@@ -423,5 +424,125 @@ describe("Tickets API", () => {
     
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
+  });
+});
+
+describe("Tickets API - Edge Cases", () => {
+  const HEADERS = { "x-user-id": "u-platform", "x-tenant-id": "tenant-acme" };
+
+  it("should return 404 when updating non-existent ticket", async () => {
+    const response = await request(app)
+      .put("/api/tickets/non-existent-ticket-id")
+      .set(HEADERS)
+      .send({ title: "Updated", description: "Updated desc", priority: "medium" });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 404 when deleting non-existent ticket", async () => {
+    const response = await request(app)
+      .delete("/api/tickets/non-existent-ticket-id")
+      .set(HEADERS);
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 404 when adding comment to non-existent ticket", async () => {
+    const response = await request(app)
+      .post("/api/tickets/non-existent-ticket-id/comments")
+      .set(HEADERS)
+      .send({ content: "This comment should fail" });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 404 when getting conversations of non-existent ticket", async () => {
+    const response = await request(app)
+      .get("/api/tickets/non-existent-ticket-id/conversations")
+      .set(HEADERS);
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating ticket with empty title string", async () => {
+    const response = await request(app)
+      .post("/api/tickets")
+      .set(HEADERS)
+      .send({ title: "", description: "Valid description", priority: "medium" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating ticket with empty description string", async () => {
+    const response = await request(app)
+      .post("/api/tickets")
+      .set(HEADERS)
+      .send({ title: "Valid Title", description: "", priority: "medium" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating ticket with completely empty body", async () => {
+    const response = await request(app)
+      .post("/api/tickets")
+      .set(HEADERS)
+      .send({});
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating ticket with priority 'urgent' (not in enum)", async () => {
+    const response = await request(app)
+      .post("/api/tickets")
+      .set(HEADERS)
+      .send({ title: "Test", description: "Test desc", priority: "urgent" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating ticket with priority 'none' (not in enum)", async () => {
+    const response = await request(app)
+      .post("/api/tickets")
+      .set(HEADERS)
+      .send({ title: "Test", description: "Test desc", priority: "none" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating ticket with numeric priority", async () => {
+    const response = await request(app)
+      .post("/api/tickets")
+      .set(HEADERS)
+      .send({ title: "Test", description: "Test desc", priority: 123 });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 404 when closing non-existent ticket", async () => {
+    const response = await request(app)
+      .post("/api/tickets/non-existent-ticket-id/close")
+      .set(HEADERS);
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 404 when reopening non-existent ticket", async () => {
+    const response = await request(app)
+      .post("/api/tickets/non-existent-ticket-id/reopen")
+      .set(HEADERS);
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty("error");
   });
 });

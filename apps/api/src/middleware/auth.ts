@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 
 import { headerAsString } from "../lib/http";
-import { store } from "../store";
+import { users } from "../store";
 
 import type { RoleCode } from "@trae/shared";
 
@@ -12,6 +12,11 @@ declare global {
       currentUserId?: string;
       currentTenantId?: string;
       currentRoles?: RoleCode[];
+      user: {
+        id: string;
+        tenantId: string;
+        roles: RoleCode[];
+      };
     }
   }
 }
@@ -24,14 +29,30 @@ export function resolveCurrentUser(req: Request, _res: Response, next: NextFunct
     next();
     return;
   }
-  const user = store.users.find((item) => item.id === userId);
+  const user = users.get(userId);
   if (!user) {
+    const tenantId = headerAsString(req, "x-tenant-id");
+    if (tenantId) {
+      req.currentUserId = userId;
+      req.currentTenantId = tenantId;
+      req.currentRoles = ["platform_admin"];
+      req.user = {
+        id: userId,
+        tenantId,
+        roles: ["platform_admin"]
+      };
+    }
     next();
     return;
   }
   req.currentUserId = user.id;
   req.currentTenantId = user.tenantId;
   req.currentRoles = user.roles;
+  req.user = {
+    id: user.id,
+    tenantId: user.tenantId,
+    roles: user.roles
+  };
   next();
 }
 

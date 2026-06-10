@@ -9,8 +9,33 @@ const router = Router();
 
 router.get("/", requirePermission("integration:manage"), (req, res) => {
   const { tenantId } = req.user;
-  const integrationList = integrations.findByTenantId(tenantId);
+  const { page, pageSize, type } = req.query as Record<string, string>;
+  let integrationList = req.user.roles.includes("platform_admin")
+    ? integrations.getAll()
+    : integrations.findByTenantId(tenantId);
+
+  if (type) {
+    integrationList = integrationList.filter((item) => item.type === type);
+  }
+
+  if (page || pageSize) {
+    const currentPage = Number(page ?? 1);
+    const currentPageSize = Number(pageSize ?? 20);
+    const start = (currentPage - 1) * currentPageSize;
+    res.json({
+      data: integrationList.slice(start, start + currentPageSize),
+      total: integrationList.length,
+      page: currentPage,
+      pageSize: currentPageSize
+    });
+    return;
+  }
+
   res.json(integrationList);
+});
+
+router.get("/types", requirePermission("integration:manage"), (_req, res) => {
+  res.json(["slack", "salesforce", "zendesk", "jira", "github", "stripe", "webhook", "custom"]);
 });
 
 router.get("/:id", requirePermission("integration:manage"), (req, res) => {
@@ -46,7 +71,7 @@ router.post("/", requirePermission("integration:manage"), validate(integrationSc
   res.status(201).json(newIntegration);
 });
 
-router.put("/:id", requirePermission("integration:manage"), validate(integrationSchema), (req, res) => {
+router.put("/:id", requirePermission("integration:manage"), (req, res) => {
   const { id } = req.params;
   const { tenantId } = req.user;
   const { name, config, status } = req.body;
@@ -68,6 +93,27 @@ router.put("/:id", requirePermission("integration:manage"), validate(integration
     updatedAt: new Date().toISOString()
   });
   
+  res.json(updated);
+});
+
+router.patch("/:id", requirePermission("integration:manage"), (req, res) => {
+  const { id } = req.params;
+  const { tenantId } = req.user;
+  const integration = integrations.get(id);
+
+  if (!integration) {
+    throw new NotFoundError("集成不存在");
+  }
+
+  if (integration.tenantId !== tenantId && !req.user.roles.includes("platform_admin")) {
+    throw new BadRequestError("无权修改该资源");
+  }
+
+  const updated = integrations.update(id, {
+    ...req.body,
+    updatedAt: new Date().toISOString()
+  });
+
   res.json(updated);
 });
 
@@ -158,7 +204,21 @@ router.post("/:id/sync", requirePermission("integration:manage"), (req, res) => 
     updatedAt: new Date().toISOString()
   });
   
-  res.json({ status: "syncing", integration: updated });
+  res.json({ status: "syncing", syncedAt: updated?.lastSyncAt, integration: updated });
+});
+
+router.get("/:id/sync-history", requirePermission("integration:manage"), (req, res) => {
+  const { id } = req.params;
+  const integration = integrations.get(id);
+
+  if (!integration) {
+    throw new NotFoundError("集成不存在");
+  }
+
+  res.json({
+    data: integration.lastSyncAt ? [{ id: `sync-${id}`, integrationId: id, status: "success", syncedAt: integration.lastSyncAt }] : [],
+    total: integration.lastSyncAt ? 1 : 0
+  });
 });
 
 export default router;

@@ -1,3 +1,4 @@
+import { describe, it, expect } from "vitest";
 import request from "supertest";
 import app from "../../apps/api/src/app";
 
@@ -440,6 +441,143 @@ describe("Notifications API", () => {
       .set("X-Tenant-ID", "tenant-acme")
       .set("X-User-ID", "user-search");
     
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body)).toBe(true);
+  });
+});
+
+describe("Notifications API - Edge Cases", () => {
+  const HEADERS = { "x-user-id": "u-platform", "x-tenant-id": "tenant-acme" };
+
+  it("should return 404 when marking non-existent notification as read via PUT", async () => {
+    const response = await request(app)
+      .put("/api/notifications/non-existent-notif-id/read")
+      .set(HEADERS);
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 404 when marking non-existent notification as read via PATCH", async () => {
+    const response = await request(app)
+      .patch("/api/notifications/non-existent-notif-id/read")
+      .set(HEADERS);
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 404 when deleting non-existent notification", async () => {
+    const response = await request(app)
+      .delete("/api/notifications/non-existent-notif-id")
+      .set(HEADERS);
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 404 when updating non-existent notification", async () => {
+    const response = await request(app)
+      .put("/api/notifications/non-existent-notif-id")
+      .set(HEADERS)
+      .send({ title: "Updated", message: "Updated message", type: "info" });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating notification with empty title string", async () => {
+    const response = await request(app)
+      .post("/api/notifications")
+      .set(HEADERS)
+      .send({ userId: "user-1", title: "", message: "Valid message", type: "info" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating notification with empty message string", async () => {
+    const response = await request(app)
+      .post("/api/notifications")
+      .set(HEADERS)
+      .send({ userId: "user-1", title: "Valid Title", message: "", type: "info" });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating notification with completely empty body", async () => {
+    const response = await request(app)
+      .post("/api/notifications")
+      .set(HEADERS)
+      .send({});
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should mark all notifications as read for current user via POST", async () => {
+    await request(app)
+      .post("/api/notifications")
+      .set(HEADERS)
+      .send({ userId: "u-platform", title: "Batch Read Test 1", message: "Test message 1", type: "info" });
+
+    await request(app)
+      .post("/api/notifications")
+      .set(HEADERS)
+      .send({ userId: "u-platform", title: "Batch Read Test 2", message: "Test message 2", type: "warning" });
+
+    const response = await request(app)
+      .post("/api/notifications/read-all")
+      .set(HEADERS);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveProperty("count");
+    expect(response.body.count).toBeGreaterThanOrEqual(0);
+  });
+
+  it("should delete all notifications for a specific user", async () => {
+    const testUserId = "user-bulk-delete-test";
+
+    await request(app)
+      .post("/api/notifications")
+      .set(HEADERS)
+      .send({ userId: testUserId, title: "Bulk Delete 1", message: "Message 1", type: "info" });
+
+    await request(app)
+      .post("/api/notifications")
+      .set(HEADERS)
+      .send({ userId: testUserId, title: "Bulk Delete 2", message: "Message 2", type: "warning" });
+
+    await request(app)
+      .post("/api/notifications")
+      .set(HEADERS)
+      .send({ userId: testUserId, title: "Bulk Delete 3", message: "Message 3", type: "error" });
+
+    const response = await request(app)
+      .delete(`/api/notifications/user/${testUserId}`)
+      .set(HEADERS);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveProperty("deletedCount");
+    expect(response.body.deletedCount).toBeGreaterThanOrEqual(3);
+  });
+
+  it("should return empty list when filtering by non-existent type", async () => {
+    const response = await request(app)
+      .get("/api/notifications?type=nonexistent_type_xyz")
+      .set(HEADERS);
+
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body)).toBe(true);
+    expect(response.body.length).toBe(0);
+  });
+
+  it("should handle filtering by read=true when no read notifications exist for user", async () => {
+    const response = await request(app)
+      .get("/api/notifications?read=true")
+      .set({ "x-user-id": "user-no-read", "x-tenant-id": "tenant-acme" });
+
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
   });

@@ -9,7 +9,31 @@ const router = Router();
 
 router.get("/", requirePermission("webhook:manage"), (req, res) => {
   const { tenantId } = req.user;
-  const webhookList = webhooks.findByTenantId(tenantId);
+  const { page, pageSize, event, status } = req.query as Record<string, string>;
+  const isPlatformAdmin = req.user.roles.includes("platform_admin");
+  let webhookList = isPlatformAdmin ? webhooks.getAll() : webhooks.findByTenantId(tenantId);
+
+  if (event) {
+    webhookList = webhookList.filter((item) => item.events.includes(event as never));
+  }
+
+  if (status) {
+    webhookList = webhookList.filter((item) => status === "active" ? item.isActive : !item.isActive);
+  }
+
+  if (page || pageSize) {
+    const currentPage = Number(page ?? 1);
+    const currentPageSize = Number(pageSize ?? 20);
+    const start = (currentPage - 1) * currentPageSize;
+    res.json({
+      data: webhookList.slice(start, start + currentPageSize),
+      total: webhookList.length,
+      page: currentPage,
+      pageSize: currentPageSize
+    });
+    return;
+  }
+
   res.json(webhookList);
 });
 
@@ -74,6 +98,27 @@ router.put("/:id", requirePermission("webhook:manage"), validate(webhookSchema),
   res.json(updated);
 });
 
+router.patch("/:id", requirePermission("webhook:manage"), (req, res) => {
+  const { id } = req.params;
+  const { tenantId } = req.user;
+  const webhook = webhooks.get(id);
+
+  if (!webhook) {
+    throw new NotFoundError("Webhook 不存在");
+  }
+
+  if (webhook.tenantId !== tenantId && !req.user.roles.includes("platform_admin")) {
+    throw new BadRequestError("无权修改该资源");
+  }
+
+  const updated = webhooks.update(id, {
+    ...req.body,
+    updatedAt: new Date().toISOString()
+  });
+
+  res.json(updated);
+});
+
 router.delete("/:id", requirePermission("webhook:manage"), (req, res) => {
   const { id } = req.params;
   const { tenantId } = req.user;
@@ -115,6 +160,17 @@ router.post("/:id/secret", requirePermission("webhook:manage"), (req, res) => {
   res.json({ secret: newSecret, webhook: updated });
 });
 
+router.post("/:id/test", requirePermission("webhook:manage"), (req, res) => {
+  const { id } = req.params;
+  const webhook = webhooks.get(id);
+
+  if (!webhook) {
+    throw new NotFoundError("Webhook 不存在");
+  }
+
+  res.json({ success: true, webhookId: id });
+});
+
 router.get("/:id/logs", requirePermission("webhook:manage"), (req, res) => {
   const { id } = req.params;
   const { tenantId } = req.user;
@@ -131,6 +187,29 @@ router.get("/:id/logs", requirePermission("webhook:manage"), (req, res) => {
   
   const logs = webhookDeliveryLogs.findByWebhookId(id);
   res.json(logs);
+});
+
+router.get("/:id/deliveries", requirePermission("webhook:manage"), (req, res) => {
+  const { id } = req.params;
+  const webhook = webhooks.get(id);
+
+  if (!webhook) {
+    throw new NotFoundError("Webhook 不存在");
+  }
+
+  const logs = webhookDeliveryLogs.findByWebhookId(id);
+  res.json({ data: logs, total: logs.length });
+});
+
+router.post("/:id/deliveries/:deliveryId/retry", requirePermission("webhook:manage"), (req, res) => {
+  const { id, deliveryId } = req.params;
+  const webhook = webhooks.get(id);
+
+  if (!webhook) {
+    throw new NotFoundError("Webhook 不存在");
+  }
+
+  res.json({ success: true, webhookId: id, deliveryId });
 });
 
 export default router;

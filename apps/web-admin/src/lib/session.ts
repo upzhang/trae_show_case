@@ -28,5 +28,5 @@ export function can(permission: PermissionCode): boolean {
 }
 
 export function fetchHeaders(): Record<string, string> {
-  return { "x-user-id": currentUserId, "content-type": "application/json" };
+  return { "x-user-id": currentUserId };
 }

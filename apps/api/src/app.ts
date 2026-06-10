@@ -3,7 +3,7 @@ import express from "express";
 
 import { resolveCurrentUser } from "./middleware/auth";
 import { errorHandler } from "./middleware/error-handler";
-import { rateLimit } from "./middleware/rate-limit";
+import { apiRateLimiter as rateLimit } from "./middleware/rate-limit";
 import { requestLogger } from "./middleware/request-logger";
 import activityEventsRouter from "./routes/activity-events";
 import approvalsRouter from "./routes/approvals";
@@ -12,8 +12,10 @@ import featuresRouter from "./routes/features";
 import healthRouter from "./routes/health";
 import integrationsRouter from "./routes/integrations";
 import invoicesRouter from "./routes/invoices";
+import metricsRouter from "./routes/metrics";
 import notificationsRouter from "./routes/notifications";
 import releasesRouter from "./routes/releases";
+import rolesRouter from "./routes/roles";
 import sessionRouter from "./routes/session";
 import subscriptionsRouter from "./routes/subscriptions";
 import supportRisksRouter from "./routes/support-risks";
@@ -28,7 +30,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-app.use(requestLogger);
+app.use(requestLogger());
 app.use(resolveCurrentUser);
 app.use(rateLimit);
 
@@ -41,15 +43,17 @@ app.use(releasesRouter);
 app.use(auditLogsRouter);
 app.use(supportRisksRouter);
 app.use(activityEventsRouter);
-app.use(webhooksRouter);
-app.use(tokensRouter);
-app.use(teamsRouter);
-app.use(integrationsRouter);
-app.use(featuresRouter);
-app.use(ticketsRouter);
-app.use(subscriptionsRouter);
-app.use(invoicesRouter);
-app.use(notificationsRouter);
+app.use("/api/webhooks", webhooksRouter);
+app.use("/api/tokens", tokensRouter);
+app.use("/api/teams", teamsRouter);
+app.use("/api/integrations", integrationsRouter);
+app.use("/api/features", featuresRouter);
+app.use("/api/tickets", ticketsRouter);
+app.use("/api/subscriptions", subscriptionsRouter);
+app.use("/api/invoices", invoicesRouter);
+app.use("/api/notifications", notificationsRouter);
+app.use(metricsRouter);
+app.use(rolesRouter);
 
 app.use(errorHandler);
 

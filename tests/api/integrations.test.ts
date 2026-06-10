@@ -1,3 +1,4 @@
+import { describe, it, expect } from "vitest";
 import request from "supertest";
 import app from "../../apps/api/src/app";
 
@@ -342,5 +343,102 @@ describe("Integrations API", () => {
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
     expect(response.body.length).toBeGreaterThan(0);
+  });
+});
+
+describe("Integrations API - 边界与异常路径", () => {
+  const HEADERS = { "x-user-id": "u-platform", "x-tenant-id": "tenant-acme" };
+
+  describe("POST /api/integrations - 缺少必填字段", () => {
+    it("should return 400 when body is empty", async () => {
+      const response = await request(app)
+        .post("/api/integrations")
+        .set(HEADERS)
+        .send({});
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should return 400 when name is empty string", async () => {
+      const response = await request(app)
+        .post("/api/integrations")
+        .set(HEADERS)
+        .send({ type: "slack", name: "", config: {} });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should return 400 when name exceeds 100 characters", async () => {
+      const response = await request(app)
+        .post("/api/integrations")
+        .set(HEADERS)
+        .send({
+          type: "slack",
+          name: "a".repeat(101),
+          config: {}
+        });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should return 400 when type is empty string", async () => {
+      const response = await request(app)
+        .post("/api/integrations")
+        .set(HEADERS)
+        .send({ type: "", name: "Test", config: {} });
+
+      expect(response.status).toBe(400);
+    });
+  });
+
+  describe("PUT /api/integrations/:id - 更新不存在的集成", () => {
+    it("should return 404 when updating non-existent integration", async () => {
+      const response = await request(app)
+        .put("/api/integrations/non-existent-id")
+        .set(HEADERS)
+        .send({ name: "Updated", config: {} });
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("DELETE /api/integrations/:id - 删除不存在的集成", () => {
+    it("should return 404 when deleting non-existent integration", async () => {
+      const response = await request(app)
+        .delete("/api/integrations/non-existent-id")
+        .set(HEADERS);
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /api/integrations/:id/connect - 测试连接不存在的集成", () => {
+    it("should return 404 when connecting non-existent integration", async () => {
+      const response = await request(app)
+        .post("/api/integrations/non-existent-id/connect")
+        .set(HEADERS);
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /api/integrations/:id/sync - 同步不存在的集成", () => {
+    it("should return 404 when syncing non-existent integration", async () => {
+      const response = await request(app)
+        .post("/api/integrations/non-existent-id/sync")
+        .set(HEADERS);
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("GET /api/integrations/:id/sync-history - 获取同步历史不存在的集成", () => {
+    it("should return 404 when getting sync history of non-existent integration", async () => {
+      const response = await request(app)
+        .get("/api/integrations/non-existent-id/sync-history")
+        .set(HEADERS);
+
+      expect(response.status).toBe(404);
+    });
   });
 });

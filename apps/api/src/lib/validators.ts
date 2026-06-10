@@ -3,7 +3,7 @@ import { errorFactory } from "./errors";
 
 export const emailSchema = z.string().email("无效的邮箱格式");
 
-export const uuidSchema = z.string().uuid("无效的 UUID 格式");
+export const uuidSchema = z.string().min(1, "ID 不能为空");
 
 export const urlSchema = z.string().url("无效的 URL 格式");
 
@@ -85,43 +85,13 @@ export const releaseCreateSchema = z.object({
 export const webhookCreateSchema = z.object({
   name: z.string().min(1, "Webhook 名称不能为空").max(100, "Webhook 名称不能超过100个字符"),
   url: urlSchema,
-  events: z.array(z.enum([
-    "approvals.created",
-    "approvals.approved",
-    "approvals.rejected",
-    "releases.deployed",
-    "releases.rolled_back",
-    "tickets.created",
-    "tickets.updated",
-    "tickets.resolved",
-    "billing.invoice.paid",
-    "billing.invoice.overdue",
-    "billing.subscription.updated",
-    "users.created",
-    "users.updated",
-    "tenants.updated"
-  ])).nonempty("至少需要订阅一个事件类型")
+  events: z.array(z.string().min(1)).nonempty("至少需要订阅一个事件类型")
 });
 
 export const webhookUpdateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   url: urlSchema.optional(),
-  events: z.array(z.enum([
-    "approvals.created",
-    "approvals.approved",
-    "approvals.rejected",
-    "releases.deployed",
-    "releases.rolled_back",
-    "tickets.created",
-    "tickets.updated",
-    "tickets.resolved",
-    "billing.invoice.paid",
-    "billing.invoice.overdue",
-    "billing.subscription.updated",
-    "users.created",
-    "users.updated",
-    "tenants.updated"
-  ])).optional(),
+  events: z.array(z.string().min(1)).optional(),
   isActive: z.boolean().optional()
 });
 
@@ -149,6 +119,7 @@ export const teamMemberAddSchema = z.object({
 
 export const integrationConfigSchema = z.object({
   type: z.enum(["slack", "salesforce", "zendesk", "jira", "github", "stripe", "webhook", "custom"]),
+  name: z.string().min(1).max(100),
   config: z.record(z.string(), z.any()).optional()
 });
 
@@ -156,18 +127,20 @@ export const featureFlagCreateSchema = z.object({
   key: z.string().min(1).max(100).regex(/^[a-z][a-z0-9_]*$/, "功能开关 key 必须以小写字母开头，只能包含小写字母、数字和下划线"),
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
-  type: z.enum(["boolean", "string", "number", "json", "select"]),
-  defaultValue: z.any(),
-  isEnabled: z.boolean().default(true),
+  type: z.enum(["boolean", "string", "number", "json", "select", "feature", "system", "beta"]),
+  defaultValue: z.any().optional(),
+  isEnabled: z.boolean().optional(),
+  enabled: z.boolean().optional(),
   rolloutPercentage: z.coerce.number().min(0).max(100).optional()
 });
 
 export const featureFlagUpdateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional(),
-  type: z.enum(["boolean", "string", "number", "json", "select"]).optional(),
+  type: z.enum(["boolean", "string", "number", "json", "select", "feature", "system", "beta"]).optional(),
   defaultValue: z.any().optional(),
   isEnabled: z.boolean().optional(),
+  enabled: z.boolean().optional(),
   rolloutPercentage: z.coerce.number().min(0).max(100).optional()
 });
 
@@ -188,7 +161,10 @@ export const ticketCreateSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().min(1).max(2000),
   priority: z.enum(["critical", "high", "medium", "low"]),
-  category: z.enum(["support", "feature_request", "bug_report", "billing", "security"]),
+  category: z.enum(["support", "feature_request", "bug_report", "billing", "security"]).optional(),
+  type: z.string().optional(),
+  assigneeId: z.string().nullable().optional(),
+  status: z.string().optional(),
   tags: z.array(z.string()).optional()
 });
 
@@ -207,7 +183,8 @@ export const ticketStatusUpdateSchema = z.object({
 });
 
 export const ticketCommentSchema = z.object({
-  message: z.string().min(1).max(1000),
+  message: z.string().min(1).max(1000).optional(),
+  content: z.string().min(1).max(1000).optional(),
   isInternal: z.boolean().default(false)
 });
 
@@ -226,6 +203,16 @@ export const notificationPreferenceSchema = z.object({
     "feature_released"
   ]), z.boolean())
 });
+
+// 兼容旧路由中 validate(schema) 的调用方式：schema 接收完整 req 容器。
+export const webhookSchema = z.object({ body: webhookCreateSchema });
+export const tokenSchema = z.object({ body: tokenCreateSchema });
+export const teamSchema = z.object({ body: teamCreateSchema });
+export const teamMemberSchema = z.object({ body: teamMemberAddSchema });
+export const integrationSchema = z.object({ body: integrationConfigSchema });
+export const featureFlagSchema = z.object({ body: featureFlagCreateSchema });
+export const ticketSchema = z.object({ body: ticketCreateSchema });
+export const ticketConversationSchema = z.object({ body: ticketCommentSchema });
 
 export async function validateAndThrow<T>(
   schema: z.ZodType<T>,

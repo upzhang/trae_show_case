@@ -1,3 +1,4 @@
+import { describe, it, expect } from "vitest";
 import request from "supertest";
 import app from "../../apps/api/src/app";
 
@@ -300,5 +301,115 @@ describe("Webhooks API", () => {
       .set("X-User-ID", "u-platform");
     
     expect(response.status).toBe(200);
+  });
+});
+
+describe("Webhooks API - Edge Cases", () => {
+  const HEADERS = { "x-user-id": "u-platform", "x-tenant-id": "tenant-acme" };
+
+  it("should return 400 when creating webhook with URL missing protocol", async () => {
+    const response = await request(app)
+      .post("/api/webhooks")
+      .set(HEADERS)
+      .send({ name: "Bad URL", url: "example.com/webhook", events: ["test.event"] });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating webhook with empty string URL", async () => {
+    const response = await request(app)
+      .post("/api/webhooks")
+      .set(HEADERS)
+      .send({ name: "Empty URL", url: "", events: ["test.event"] });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating webhook with empty events array", async () => {
+    const response = await request(app)
+      .post("/api/webhooks")
+      .set(HEADERS)
+      .send({ name: "No Events", url: "https://example.com/webhook", events: [] });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating webhook with empty event string in array", async () => {
+    const response = await request(app)
+      .post("/api/webhooks")
+      .set(HEADERS)
+      .send({ name: "Empty Event", url: "https://example.com/webhook", events: [""] });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 404 when updating non-existent webhook", async () => {
+    const response = await request(app)
+      .put("/api/webhooks/non-existent-webhook-id")
+      .set(HEADERS)
+      .send({ name: "Updated", url: "https://example.com/updated", events: ["test.event"] });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 404 when patching non-existent webhook", async () => {
+    const response = await request(app)
+      .patch("/api/webhooks/non-existent-webhook-id")
+      .set(HEADERS)
+      .send({ name: "Patched" });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 404 when testing non-existent webhook", async () => {
+    const response = await request(app)
+      .post("/api/webhooks/non-existent-webhook-id/test")
+      .set(HEADERS);
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 404 when retrying delivery of non-existent webhook", async () => {
+    const response = await request(app)
+      .post("/api/webhooks/non-existent-webhook-id/deliveries/test-delivery-id/retry")
+      .set(HEADERS);
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 404 when getting deliveries of non-existent webhook", async () => {
+    const response = await request(app)
+      .get("/api/webhooks/non-existent-webhook-id/deliveries")
+      .set(HEADERS);
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 404 when getting logs of non-existent webhook", async () => {
+    const response = await request(app)
+      .get("/api/webhooks/non-existent-webhook-id/logs")
+      .set(HEADERS);
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 400 when creating webhook with completely empty body", async () => {
+    const response = await request(app)
+      .post("/api/webhooks")
+      .set(HEADERS)
+      .send({});
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty("error");
   });
 });

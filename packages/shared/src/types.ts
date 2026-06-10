@@ -6,30 +6,25 @@ export type RoleCode =
   | "member";
 
 export type PermissionCode =
-  | "tenant:view"
-  | "tenant:edit"
-  | "user:view"
-  | "user:edit"
-  | "role:view"
-  | "role:edit"
-  | "approval:view"
-  | "approval:approve"
-  | "release:view"
-  | "release:deploy"
-  | "audit:view"
-  | "billing:view"
-  | "billing:edit"
-  | "notification:view"
-  | "notification:manage"
-  | "webhook:manage"
-  | "metric:view"
-  | "token:manage"
-  | "team:manage"
-  | "integration:manage"
-  | "feature:manage"
-  | "ticket:view"
-  | "ticket:edit"
-  | "ticket:manage";
+  | "tenant:view" | "tenant:edit" | "tenant:read" | "tenant:write" | "tenant:delete"
+  | "user:view" | "user:edit" | "user:read" | "user:write" | "user:delete"
+  | "role:view" | "role:edit" | "role:read" | "role:write" | "role:delete"
+  | "approval:view" | "approval:approve" | "approval:read" | "approval:write"
+  | "release:view" | "release:deploy" | "release:read" | "release:write" | "release:rollback"
+  | "audit:view" | "audit:read" | "audit:export"
+  | "risk:read" | "risk:write"
+  | "activity:read"
+  | "billing:view" | "billing:edit"
+  | "notification:view" | "notification:manage" | "notification:read"
+  | "webhook:manage" | "webhook:read"
+  | "metric:view" | "metric:read"
+  | "token:manage" | "token:read"
+  | "team:manage" | "team:read" | "team:create"
+  | "integration:manage" | "integration:read" | "integration:create"
+  | "feature:manage" | "feature:read"
+  | "ticket:view" | "ticket:edit" | "ticket:manage" | "ticket:read"
+  | "subscription:read" | "subscription:manage"
+  | "invoice:read" | "invoice:manage";
 
 export type ErrorCode =
   | "AUTH_UNAUTHORIZED"
@@ -202,9 +197,9 @@ export interface ActivityEvent {
   details?: Record<string, unknown>;
 }
 
-export type SubscriptionStatus = "trial" | "active" | "past_due" | "canceled";
+export type SubscriptionStatus = "trial" | "active" | "past_due" | "canceled" | "cancelled" | "expired";
 
-export type SubscriptionPlan = "standard" | "enterprise";
+export type SubscriptionPlan = "free" | "pro" | "standard" | "enterprise";
 
 export type BillingPeriod = "monthly" | "yearly";
 
@@ -225,7 +220,7 @@ export interface Subscription {
   updatedAt: string;
 }
 
-export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "canceled";
+export type InvoiceStatus = "draft" | "pending" | "sent" | "paid" | "overdue" | "canceled" | "refunded";
 
 export interface Invoice {
   id: string;
@@ -243,6 +238,7 @@ export interface Invoice {
   canceledAt?: string;
   items: InvoiceItem[];
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface InvoiceItem {
@@ -276,7 +272,12 @@ export type NotificationType =
   | "invoice_ready"
   | "invoice_overdue"
   | "subscription_renewal"
-  | "feature_released";
+  | "feature_released"
+  | "info"
+  | "warning"
+  | "error"
+  | "success"
+  | "system";
 
 export interface Notification {
   id: string;
@@ -289,12 +290,15 @@ export interface Notification {
   resourceType?: string;
   resourceId?: string;
   metadata?: Record<string, unknown>;
+  scheduledAt?: string;
+  status?: string;
   createdAt: string;
 }
 
 export interface NotificationPreference {
+  id: string;
   userId: string;
-  preferences: Record<NotificationType, boolean>;
+  preferences: Partial<Record<NotificationType, boolean>>;
   createdAt: string;
   updatedAt: string;
 }
@@ -313,7 +317,8 @@ export type WebhookEvent =
   | "billing.subscription.updated"
   | "users.created"
   | "users.updated"
-  | "tenants.updated";
+  | "tenants.updated"
+  | string;
 
 export interface WebhookEndpoint {
   id: string;
@@ -369,7 +374,7 @@ export interface HealthScoreDistribution {
   risk: number;
 }
 
-export type TokenScope = "read" | "write" | "admin";
+export type TokenScope = "read" | "write" | "admin" | string;
 
 export interface ApiToken {
   id: string;
@@ -380,6 +385,7 @@ export interface ApiToken {
   scopes: TokenScope[];
   expiresAt?: string;
   createdAt: string;
+  updatedAt?: string;
   lastUsedAt?: string;
   usageCount: number;
 }
@@ -395,6 +401,7 @@ export interface Team {
 }
 
 export interface TeamMember {
+  id: string;
   teamId: string;
   userId: string;
   role?: string;
@@ -489,7 +496,7 @@ export interface RoleDefinition {
 
 export type TicketPriority = "critical" | "high" | "medium" | "low";
 
-export type TicketStatus = "new" | "in_progress" | "waiting_customer" | "resolved" | "closed";
+export type TicketStatus = "new" | "open" | "in_progress" | "waiting_customer" | "resolved" | "closed";
 
 export type TicketCategory = "support" | "feature_request" | "bug_report" | "billing" | "security";
 
@@ -502,6 +509,7 @@ export interface Ticket {
   status: TicketStatus;
   category: TicketCategory;
   assigneeId?: string;
+  type?: string;
   creatorId: string;
   tags?: string[];
   createdAt: string;
@@ -513,13 +521,16 @@ export interface Ticket {
 export interface TicketConversation {
   id: string;
   ticketId: string;
+  userId?: string;
   authorId: string;
   message: string;
+  content?: string;
   isInternal?: boolean;
   createdAt: string;
 }
 
 export interface TicketStatusTransition {
+  id: string;
   ticketId: string;
   fromStatus: TicketStatus;
   toStatus: TicketStatus;

@@ -38,16 +38,27 @@ import type {
 } from "@trae/shared";
 
 interface Identifiable {
-  id: string;
+  id: EntityId;
+}
+
+type EntityId = string | string[];
+
+function normalizeEntityId(id: EntityId): string {
+  return Array.isArray(id) ? id[0] : id;
 }
 
 class Repository<T extends Identifiable> {
-  protected items: T[];
+  items: T[];
   protected seedData: T[];
 
   constructor(seedData: T[]) {
     this.seedData = seedData;
     this.items = JSON.parse(JSON.stringify(seedData));
+  }
+
+  /** 重置数据到初始种子状态 */
+  reset(): void {
+    this.items = JSON.parse(JSON.stringify(this.seedData));
   }
 
   list(filter?: Partial<T>, pagination?: PaginationParams, sort?: SortParams): PaginatedResponse<T> {
@@ -63,9 +74,10 @@ class Repository<T extends Identifiable> {
     }
 
     if (sort?.sortBy) {
+      const sortKey = sort.sortBy;
       result.sort((a, b) => {
-        const aVal = (a as Record<string, unknown>)[sort.sortBy] as string | number | boolean | Date | undefined;
-        const bVal = (b as Record<string, unknown>)[sort.sortBy] as string | number | boolean | Date | undefined;
+        const aVal = (a as Record<string, unknown>)[sortKey] as string | number | boolean | Date | undefined;
+        const bVal = (b as Record<string, unknown>)[sortKey] as string | number | boolean | Date | undefined;
 
         if (aVal === undefined || aVal === null) return sort.sortOrder === "asc" ? -1 : 1;
         if (bVal === undefined || bVal === null) return sort.sortOrder === "asc" ? 1 : -1;
@@ -99,38 +111,47 @@ class Repository<T extends Identifiable> {
     };
   }
 
-  get(id: string): T | undefined {
-    return this.items.find((item) => item.id === id);
+  getAll(): T[] {
+    return [...this.items];
   }
 
-  findByField<K extends keyof T>(field: K, value: T[K]): T | undefined {
-    return this.items.find((item) => item[field] === value);
+  get(id: EntityId): T | undefined {
+    const normalizedId = normalizeEntityId(id);
+    return this.items.find((item) => item.id === normalizedId);
   }
 
-  findByFields(fields: Partial<T>): T[] {
+  findByField<K extends keyof T>(field: K, value: unknown): T | undefined {
+    const normalizedValue = Array.isArray(value) ? value[0] : value;
+    return this.items.find((item) => item[field] === normalizedValue);
+  }
+
+  findByFields(fields: Record<string, unknown>): T[] {
     return this.items.filter((item) => {
       return Object.entries(fields).every(([key, value]) => {
         if (value === undefined || value === null) return true;
-        return (item as Record<string, unknown>)[key] === value;
+        const normalizedValue = Array.isArray(value) ? value[0] : value;
+        return (item as Record<string, unknown>)[key] === normalizedValue;
       });
     });
   }
 
-  create(item: Omit<T, "id"> & { id?: string }): T {
-    const newItem = { ...item, id: (item as T).id || `id-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` } as T;
+  create(item: Partial<T> & { id?: string }): T {
+    const newItem = { ...item, id: (item as T).id || `id-${Date.now()}-${Math.random().toString(36).substring(2, 11)}` } as T;
     this.items.push(newItem);
     return newItem;
   }
 
-  update(id: string, updates: Partial<T>): T | undefined {
-    const index = this.items.findIndex((item) => item.id === id);
+  update(id: EntityId, updates: Partial<T> | Record<string, unknown>): T | undefined {
+    const normalizedId = normalizeEntityId(id);
+    const index = this.items.findIndex((item) => item.id === normalizedId);
     if (index === -1) return undefined;
     this.items[index] = { ...this.items[index], ...updates };
     return this.items[index];
   }
 
-  delete(id: string): boolean {
-    const index = this.items.findIndex((item) => item.id === id);
+  delete(id: EntityId): boolean {
+    const normalizedId = normalizeEntityId(id);
+    const index = this.items.findIndex((item) => item.id === normalizedId);
     if (index === -1) return false;
     this.items.splice(index, 1);
     return true;
@@ -141,16 +162,9 @@ class Repository<T extends Identifiable> {
     return this.findByFields(filter).length;
   }
 
-  exists(id: string): boolean {
-    return this.items.some((item) => item.id === id);
-  }
-
-  reset(): void {
-    this.items = JSON.parse(JSON.stringify(this.seedData));
-  }
-
-  getAll(): T[] {
-    return [...this.items];
+  exists(id: EntityId): boolean {
+    const normalizedId = normalizeEntityId(id);
+    return this.items.some((item) => item.id === normalizedId);
   }
 }
 
@@ -177,7 +191,7 @@ export class UserRepository extends Repository<User> {
     super(JSON.parse(JSON.stringify(seedUsers)));
   }
 
-  findByTenantId(tenantId: string): User[] {
+  findByTenantId(tenantId: EntityId): User[] {
     return this.findByFields({ tenantId });
   }
 
@@ -199,7 +213,7 @@ export class ApprovalRepository extends Repository<ApprovalRequest> {
     super(JSON.parse(JSON.stringify(seedApprovals)));
   }
 
-  findByTenantId(tenantId: string): ApprovalRequest[] {
+  findByTenantId(tenantId: EntityId): ApprovalRequest[] {
     return this.findByFields({ tenantId });
   }
 
@@ -217,7 +231,7 @@ export class ReleaseRepository extends Repository<ReleaseRecord> {
     super(JSON.parse(JSON.stringify(seedReleases)));
   }
 
-  findByTenantId(tenantId: string): ReleaseRecord[] {
+  findByTenantId(tenantId: EntityId): ReleaseRecord[] {
     return this.findByFields({ tenantId });
   }
 
@@ -235,11 +249,11 @@ export class AuditLogRepository extends Repository<AuditLog> {
     super(JSON.parse(JSON.stringify(seedAuditLogs)));
   }
 
-  findByTenantId(tenantId: string): AuditLog[] {
+  findByTenantId(tenantId: EntityId): AuditLog[] {
     return this.findByFields({ tenantId });
   }
 
-  findByActorId(actorId: string): AuditLog[] {
+  findByActorId(actorId: EntityId): AuditLog[] {
     return this.findByFields({ actorId });
   }
 
@@ -253,7 +267,7 @@ export class SupportRiskRepository extends Repository<SupportRisk> {
     super(JSON.parse(JSON.stringify(seedSupportRisks)));
   }
 
-  findByTenantId(tenantId: string): SupportRisk[] {
+  findByTenantId(tenantId: EntityId): SupportRisk[] {
     return this.findByFields({ tenantId });
   }
 
@@ -283,7 +297,7 @@ export class ActivityEventRepository extends Repository<ActivityEvent> {
     super(JSON.parse(JSON.stringify(seedActivityEvents)));
   }
 
-  findByTenantId(tenantId: string): ActivityEvent[] {
+  findByTenantId(tenantId: EntityId): ActivityEvent[] {
     return this.findByFields({ tenantId });
   }
 
@@ -299,7 +313,7 @@ export class ActivityEventRepository extends Repository<ActivityEvent> {
 }
 
 export class SubscriptionRepository extends Repository<Subscription> {
-  private seedSubscriptions: Subscription[] = [
+  private static seedSubscriptions: Subscription[] = [
     { id: "sub-1", tenantId: "tenant-acme", plan: "enterprise", period: "yearly", status: "active", seats: 300, seatsUsed: 238, monthlyRate: 155000, annualRate: 1860000, nextBillingAt: "2027-03-01T00:00:00.000Z", createdAt: "2025-03-01T00:00:00.000Z", updatedAt: "2026-06-01T00:00:00.000Z" },
     { id: "sub-2", tenantId: "tenant-orbit", plan: "standard", period: "monthly", status: "past_due", seats: 120, seatsUsed: 84, monthlyRate: 51667, nextBillingAt: "2026-06-15T00:00:00.000Z", createdAt: "2025-09-15T00:00:00.000Z", updatedAt: "2026-05-15T00:00:00.000Z" },
     { id: "sub-3", tenantId: "tenant-nova", plan: "enterprise", period: "yearly", status: "active", seats: 220, seatsUsed: 156, monthlyRate: 81667, annualRate: 980000, nextBillingAt: "2026-12-20T00:00:00.000Z", createdAt: "2025-12-20T00:00:00.000Z", updatedAt: "2026-06-01T00:00:00.000Z" },
@@ -310,10 +324,10 @@ export class SubscriptionRepository extends Repository<Subscription> {
   ];
 
   constructor() {
-    super(JSON.parse(JSON.stringify(this.seedSubscriptions)));
+    super(JSON.parse(JSON.stringify(SubscriptionRepository.seedSubscriptions)));
   }
 
-  findByTenantId(tenantId: string): Subscription | undefined {
+  findByTenantId(tenantId: EntityId): Subscription | undefined {
     return this.items.find((s) => s.tenantId === tenantId);
   }
 
@@ -331,7 +345,7 @@ export class SubscriptionRepository extends Repository<Subscription> {
 }
 
 export class InvoiceRepository extends Repository<Invoice> {
-  private seedInvoices: Invoice[] = [
+  private static seedInvoices: Invoice[] = [
     { id: "inv-1", tenantId: "tenant-acme", subscriptionId: "sub-1", invoiceNumber: "INV-2026-0001", status: "paid", amount: 155000, currency: "CNY", periodStart: "2026-06-01", periodEnd: "2026-06-30", issueDate: "2026-06-01", dueDate: "2026-06-15", paidAt: "2026-06-05T00:00:00.000Z", items: [{ id: "inv-item-1", description: "Enterprise 订阅费", quantity: 1, unitPrice: 155000, total: 155000 }], createdAt: "2026-06-01T00:00:00.000Z" },
     { id: "inv-2", tenantId: "tenant-acme", subscriptionId: "sub-1", invoiceNumber: "INV-2026-0002", status: "draft", amount: 155000, currency: "CNY", periodStart: "2026-07-01", periodEnd: "2026-07-31", issueDate: "2026-07-01", dueDate: "2026-07-15", items: [{ id: "inv-item-2", description: "Enterprise 订阅费", quantity: 1, unitPrice: 155000, total: 155000 }], createdAt: "2026-07-01T00:00:00.000Z" },
     { id: "inv-3", tenantId: "tenant-orbit", subscriptionId: "sub-2", invoiceNumber: "INV-2026-0003", status: "overdue", amount: 51667, currency: "CNY", periodStart: "2026-05-01", periodEnd: "2026-05-31", issueDate: "2026-05-01", dueDate: "2026-05-15", items: [{ id: "inv-item-3", description: "Standard 订阅费", quantity: 1, unitPrice: 51667, total: 51667 }], createdAt: "2026-05-01T00:00:00.000Z" },
@@ -343,14 +357,14 @@ export class InvoiceRepository extends Repository<Invoice> {
   ];
 
   constructor() {
-    super(JSON.parse(JSON.stringify(this.seedInvoices)));
+    super(JSON.parse(JSON.stringify(InvoiceRepository.seedInvoices)));
   }
 
-  findByTenantId(tenantId: string): Invoice[] {
+  findByTenantId(tenantId: EntityId): Invoice[] {
     return this.findByFields({ tenantId });
   }
 
-  findBySubscriptionId(subscriptionId: string): Invoice[] {
+  findBySubscriptionId(subscriptionId: EntityId): Invoice[] {
     return this.findByFields({ subscriptionId });
   }
 
@@ -364,7 +378,7 @@ export class InvoiceRepository extends Repository<Invoice> {
 }
 
 export class NotificationRepository extends Repository<Notification> {
-  private seedNotifications: Notification[] = [
+  private static seedNotifications: Notification[] = [
     { id: "notif-1", tenantId: "tenant-acme", userId: "u-tenant-admin", type: "approval_request", title: "有新的审批请求", message: "苏嘉宁提交了审批请求：开通生产环境 SSO 单点登录", isRead: false, resourceType: "approval", resourceId: "ap-1001", createdAt: "2026-06-09T09:40:00.000Z" },
     { id: "notif-2", tenantId: "tenant-orbit", userId: "u-orbit-admin", type: "invoice_overdue", title: "发票逾期提醒", message: "您有一张发票已逾期，请尽快支付", isRead: false, resourceType: "invoice", resourceId: "inv-3", createdAt: "2026-06-16T00:00:00.000Z" },
     { id: "notif-3", tenantId: "tenant-acme", userId: "u-release", type: "release_deployed", title: "发布已部署", message: "版本 2026.06.01 已成功部署到生产环境", isRead: true, resourceType: "release", resourceId: "rel-20260601", createdAt: "2026-06-01T10:05:00.000Z" },
@@ -376,14 +390,14 @@ export class NotificationRepository extends Repository<Notification> {
   ];
 
   constructor() {
-    super(JSON.parse(JSON.stringify(this.seedNotifications)));
+    super(JSON.parse(JSON.stringify(NotificationRepository.seedNotifications)));
   }
 
-  findByTenantId(tenantId: string): Notification[] {
+  findByTenantId(tenantId: EntityId): Notification[] {
     return this.findByFields({ tenantId });
   }
 
-  findByUserId(userId: string): Notification[] {
+  findByUserId(userId: EntityId): Notification[] {
     return this.findByFields({ userId });
   }
 
@@ -398,11 +412,11 @@ export class NotificationRepository extends Repository<Notification> {
     return this.items.filter((n) => !n.isRead);
   }
 
-  markAsRead(id: string): Notification | undefined {
+  markAsRead(id: EntityId): Notification | undefined {
     return this.update(id, { isRead: true });
   }
 
-  markAllAsRead(userId: string): void {
+  markAllAsRead(userId: EntityId): void {
     this.items.forEach((n) => {
       if (n.userId === userId) {
         n.isRead = true;
@@ -412,23 +426,23 @@ export class NotificationRepository extends Repository<Notification> {
 }
 
 export class NotificationPreferenceRepository extends Repository<NotificationPreference> {
-  private seedPreferences: NotificationPreference[] = [
-    { userId: "u-platform", preferences: { system_announcement: true, approval_request: true, approval_decision: true, release_deployed: true, release_rolled_back: true, risk_created: true, risk_updated: true, invoice_ready: true, invoice_overdue: true, subscription_renewal: true, feature_released: true }, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-06-01T00:00:00.000Z" },
-    { userId: "u-tenant-admin", preferences: { system_announcement: true, approval_request: true, approval_decision: true, release_deployed: true, release_rolled_back: false, risk_created: true, risk_updated: false, invoice_ready: true, invoice_overdue: true, subscription_renewal: true, feature_released: false }, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-05-15T00:00:00.000Z" },
-    { userId: "u-auditor", preferences: { system_announcement: true, approval_request: false, approval_decision: false, release_deployed: false, release_rolled_back: false, risk_created: true, risk_updated: false, invoice_ready: false, invoice_overdue: false, subscription_renewal: false, feature_released: false }, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-02-01T00:00:00.000Z" }
+  private static seedPreferences: NotificationPreference[] = [
+    { id: "pref-1", userId: "u-platform", preferences: { system_announcement: true, approval_request: true, approval_decision: true, release_deployed: true, release_rolled_back: true, risk_created: true, risk_updated: true, invoice_ready: true, invoice_overdue: true, subscription_renewal: true, feature_released: true }, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-06-01T00:00:00.000Z" },
+    { id: "pref-2", userId: "u-tenant-admin", preferences: { system_announcement: true, approval_request: true, approval_decision: true, release_deployed: true, release_rolled_back: false, risk_created: true, risk_updated: false, invoice_ready: true, invoice_overdue: true, subscription_renewal: true, feature_released: false }, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-05-15T00:00:00.000Z" },
+    { id: "pref-3", userId: "u-auditor", preferences: { system_announcement: true, approval_request: false, approval_decision: false, release_deployed: false, release_rolled_back: false, risk_created: true, risk_updated: false, invoice_ready: false, invoice_overdue: false, subscription_renewal: false, feature_released: false }, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-02-01T00:00:00.000Z" }
   ];
 
   constructor() {
-    super(JSON.parse(JSON.stringify(this.seedPreferences)));
+    super(JSON.parse(JSON.stringify(NotificationPreferenceRepository.seedPreferences)));
   }
 
-  findByUserId(userId: string): NotificationPreference | undefined {
+  findByUserId(userId: EntityId): NotificationPreference | undefined {
     return this.findByFields({ userId })[0];
   }
 }
 
 export class WebhookRepository extends Repository<WebhookEndpoint> {
-  private seedWebhooks: WebhookEndpoint[] = [
+  private static seedWebhooks: WebhookEndpoint[] = [
     { id: "webhook-1", tenantId: "tenant-acme", name: "审批通知", url: "https://webhook.acme-mfg.example.com/approvals", events: ["approvals.created", "approvals.approved", "approvals.rejected"], secret: "whsec_abc123", isActive: true, createdAt: "2026-05-01T00:00:00.000Z", updatedAt: "2026-05-15T00:00:00.000Z", lastDeliveredAt: "2026-06-09T09:40:00.000Z" },
     { id: "webhook-2", tenantId: "tenant-acme", name: "发布通知", url: "https://webhook.acme-mfg.example.com/releases", events: ["releases.deployed", "releases.rolled_back"], secret: "whsec_xyz789", isActive: true, createdAt: "2026-05-10T00:00:00.000Z", updatedAt: "2026-05-10T00:00:00.000Z", lastDeliveredAt: "2026-06-01T10:05:00.000Z" },
     { id: "webhook-3", tenantId: "tenant-nova", name: "工单通知", url: "https://webhook.nova-retail.example.com/tickets", events: ["tickets.created", "tickets.updated", "tickets.resolved"], secret: "whsec_nova123", isActive: false, createdAt: "2026-06-01T00:00:00.000Z", updatedAt: "2026-06-05T00:00:00.000Z" },
@@ -436,10 +450,10 @@ export class WebhookRepository extends Repository<WebhookEndpoint> {
   ];
 
   constructor() {
-    super(JSON.parse(JSON.stringify(this.seedWebhooks)));
+    super(JSON.parse(JSON.stringify(WebhookRepository.seedWebhooks)));
   }
 
-  findByTenantId(tenantId: string): WebhookEndpoint[] {
+  findByTenantId(tenantId: EntityId): WebhookEndpoint[] {
     return this.findByFields({ tenantId });
   }
 
@@ -448,12 +462,12 @@ export class WebhookRepository extends Repository<WebhookEndpoint> {
   }
 
   generateSecret(): string {
-    return `whsec_${Math.random().toString(36).substr(2, 15)}`;
+    return `whsec_${Math.random().toString(36).substring(2, 17)}`;
   }
 }
 
 export class WebhookDeliveryLogRepository extends Repository<WebhookDeliveryLog> {
-  private seedLogs: WebhookDeliveryLog[] = [
+  private static seedLogs: WebhookDeliveryLog[] = [
     { id: "log-1", webhookId: "webhook-1", eventType: "approvals.created", statusCode: 200, responseTime: 120, deliveredAt: "2026-06-09T09:40:00.000Z", createdAt: "2026-06-09T09:40:00.000Z" },
     { id: "log-2", webhookId: "webhook-1", eventType: "approvals.approved", statusCode: 200, responseTime: 85, deliveredAt: "2026-06-09T10:00:00.000Z", createdAt: "2026-06-09T10:00:00.000Z" },
     { id: "log-3", webhookId: "webhook-2", eventType: "releases.deployed", statusCode: 500, responseTime: 5000, response: "Internal Server Error", deliveredAt: "2026-06-01T10:05:00.000Z", createdAt: "2026-06-01T10:05:00.000Z" },
@@ -462,10 +476,10 @@ export class WebhookDeliveryLogRepository extends Repository<WebhookDeliveryLog>
   ];
 
   constructor() {
-    super(JSON.parse(JSON.stringify(this.seedLogs)));
+    super(JSON.parse(JSON.stringify(WebhookDeliveryLogRepository.seedLogs)));
   }
 
-  findByWebhookId(webhookId: string): WebhookDeliveryLog[] {
+  findByWebhookId(webhookId: EntityId): WebhookDeliveryLog[] {
     return this.findByFields({ webhookId });
   }
 
@@ -477,7 +491,7 @@ export class WebhookDeliveryLogRepository extends Repository<WebhookDeliveryLog>
 }
 
 export class TokenRepository extends Repository<ApiToken> {
-  private seedTokens: ApiToken[] = [
+  private static seedTokens: ApiToken[] = [
     { id: "token-1", tenantId: "tenant-acme", userId: "u-tenant-admin", name: "CI/CD 自动化", token: "sk_tenant_admin_abc123", scopes: ["read", "write"], expiresAt: "2027-06-09T00:00:00.000Z", createdAt: "2026-06-01T00:00:00.000Z", lastUsedAt: "2026-06-09T08:00:00.000Z", usageCount: 156 },
     { id: "token-2", tenantId: "tenant-acme", userId: "u-release", name: "发布脚本", token: "sk_release_mgr_xyz789", scopes: ["read", "write"], expiresAt: "2026-12-31T00:00:00.000Z", createdAt: "2026-01-15T00:00:00.000Z", lastUsedAt: "2026-06-08T15:00:00.000Z", usageCount: 89 },
     { id: "token-3", tenantId: "tenant-nova", userId: "u-nova-admin", name: "数据导出", token: "sk_nova_admin_123xyz", scopes: ["read"], expiresAt: "2026-09-01T00:00:00.000Z", createdAt: "2026-03-01T00:00:00.000Z", lastUsedAt: "2026-06-07T10:00:00.000Z", usageCount: 42 },
@@ -485,22 +499,22 @@ export class TokenRepository extends Repository<ApiToken> {
   ];
 
   constructor() {
-    super(JSON.parse(JSON.stringify(this.seedTokens)));
+    super(JSON.parse(JSON.stringify(TokenRepository.seedTokens)));
   }
 
-  findByTenantId(tenantId: string): ApiToken[] {
+  findByTenantId(tenantId: EntityId): ApiToken[] {
     return this.findByFields({ tenantId });
   }
 
-  findByUserId(userId: string): ApiToken[] {
+  findByUserId(userId: EntityId): ApiToken[] {
     return this.findByFields({ userId });
   }
 
   generateToken(): string {
-    return `sk_${Math.random().toString(36).substr(2, 20)}`;
+    return `sk_${Math.random().toString(36).substring(2, 22)}`;
   }
 
-  incrementUsage(id: string): void {
+  incrementUsage(id: EntityId): void {
     const token = this.get(id);
     if (token) {
       token.usageCount += 1;
@@ -510,7 +524,7 @@ export class TokenRepository extends Repository<ApiToken> {
 }
 
 export class TeamRepository extends Repository<Team> {
-  private seedTeams: Team[] = [
+  private static seedTeams: Team[] = [
     { id: "team-1", tenantId: "tenant-acme", name: "研发团队", description: "负责产品开发和维护", isActive: true, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
     { id: "team-2", tenantId: "tenant-acme", name: "运维团队", description: "负责系统运维和部署", isActive: true, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
     { id: "team-3", tenantId: "tenant-nova", name: "运营团队", description: "负责日常运营工作", isActive: true, createdAt: "2026-02-15T00:00:00.000Z", updatedAt: "2026-02-15T00:00:00.000Z" },
@@ -519,10 +533,10 @@ export class TeamRepository extends Repository<Team> {
   ];
 
   constructor() {
-    super(JSON.parse(JSON.stringify(this.seedTeams)));
+    super(JSON.parse(JSON.stringify(TeamRepository.seedTeams)));
   }
 
-  findByTenantId(tenantId: string): Team[] {
+  findByTenantId(tenantId: EntityId): Team[] {
     return this.findByFields({ tenantId });
   }
 
@@ -532,34 +546,34 @@ export class TeamRepository extends Repository<Team> {
 }
 
 export class TeamMemberRepository extends Repository<TeamMember> {
-  private seedMembers: TeamMember[] = [
-    { teamId: "team-1", userId: "u-tenant-admin", role: "leader", joinedAt: "2026-01-01T00:00:00.000Z" },
-    { teamId: "team-1", userId: "u-release", joinedAt: "2026-01-15T00:00:00.000Z" },
-    { teamId: "team-2", userId: "u-release", role: "leader", joinedAt: "2026-01-01T00:00:00.000Z" },
-    { teamId: "team-3", userId: "u-nova-admin", role: "leader", joinedAt: "2026-02-15T00:00:00.000Z" },
-    { teamId: "team-3", userId: "u-nova-member", joinedAt: "2026-02-20T00:00:00.000Z" },
-    { teamId: "team-4", userId: "u-orbit-admin", role: "leader", joinedAt: "2026-03-01T00:00:00.000Z" },
-    { teamId: "team-4", userId: "u-orbit-auditor", joinedAt: "2026-03-05T00:00:00.000Z" },
-    { teamId: "team-5", userId: "u-nexus-admin", role: "leader", joinedAt: "2026-04-01T00:00:00.000Z" }
+  private static seedMembers: TeamMember[] = [
+    { id: "tm-1", teamId: "team-1", userId: "u-tenant-admin", role: "leader", joinedAt: "2026-01-01T00:00:00.000Z" },
+    { id: "tm-2", teamId: "team-1", userId: "u-release", joinedAt: "2026-01-15T00:00:00.000Z" },
+    { id: "tm-3", teamId: "team-2", userId: "u-release", role: "leader", joinedAt: "2026-01-01T00:00:00.000Z" },
+    { id: "tm-4", teamId: "team-3", userId: "u-nova-admin", role: "leader", joinedAt: "2026-02-15T00:00:00.000Z" },
+    { id: "tm-5", teamId: "team-3", userId: "u-nova-member", joinedAt: "2026-02-20T00:00:00.000Z" },
+    { id: "tm-6", teamId: "team-4", userId: "u-orbit-admin", role: "leader", joinedAt: "2026-03-01T00:00:00.000Z" },
+    { id: "tm-7", teamId: "team-4", userId: "u-orbit-auditor", joinedAt: "2026-03-05T00:00:00.000Z" },
+    { id: "tm-8", teamId: "team-5", userId: "u-nexus-admin", role: "leader", joinedAt: "2026-04-01T00:00:00.000Z" }
   ];
 
   constructor() {
-    super(JSON.parse(JSON.stringify(this.seedMembers)));
+    super(JSON.parse(JSON.stringify(TeamMemberRepository.seedMembers)));
   }
 
-  findByTeamId(teamId: string): TeamMember[] {
+  findByTeamId(teamId: EntityId): TeamMember[] {
     return this.findByFields({ teamId });
   }
 
-  findByUserId(userId: string): TeamMember[] {
+  findByUserId(userId: EntityId): TeamMember[] {
     return this.findByFields({ userId });
   }
 
-  addMember(teamId: string, userId: string, role?: string): TeamMember {
-    return this.create({ teamId, userId, role, joinedAt: new Date().toISOString() });
+  addMember(teamId: EntityId, userId: EntityId, role?: string): TeamMember {
+    return this.create({ teamId: normalizeEntityId(teamId), userId: normalizeEntityId(userId), role, joinedAt: new Date().toISOString() });
   }
 
-  removeMember(teamId: string, userId: string): boolean {
+  removeMember(teamId: EntityId, userId: EntityId): boolean {
     const member = this.findByFields({ teamId, userId })[0];
     if (member) {
       return this.delete(member.id);
@@ -569,7 +583,7 @@ export class TeamMemberRepository extends Repository<TeamMember> {
 }
 
 export class IntegrationRepository extends Repository<Integration> {
-  private seedIntegrations: Integration[] = [
+  private static seedIntegrations: Integration[] = [
     { id: "int-1", tenantId: "tenant-acme", type: "slack", name: "Slack", status: "connected", config: { webhookUrl: "https://hooks.slack.com/services/xxx/yyy/zzz", channel: "#notifications" }, lastSyncAt: "2026-06-09T09:00:00.000Z", createdAt: "2026-05-01T00:00:00.000Z", updatedAt: "2026-06-01T00:00:00.000Z" },
     { id: "int-2", tenantId: "tenant-acme", type: "github", name: "GitHub", status: "connected", config: { repoUrl: "https://github.com/acme-mfg/platform", webhookSecret: "github_secret_123" }, lastSyncAt: "2026-06-09T08:00:00.000Z", createdAt: "2026-04-15T00:00:00.000Z", updatedAt: "2026-06-01T00:00:00.000Z" },
     { id: "int-3", tenantId: "tenant-nova", type: "zendesk", name: "Zendesk", status: "error", config: { subdomain: "nova-retail", apiToken: "zendesk_token_456" }, createdAt: "2026-03-01T00:00:00.000Z", updatedAt: "2026-06-05T00:00:00.000Z" },
@@ -579,10 +593,10 @@ export class IntegrationRepository extends Repository<Integration> {
   ];
 
   constructor() {
-    super(JSON.parse(JSON.stringify(this.seedIntegrations)));
+    super(JSON.parse(JSON.stringify(IntegrationRepository.seedIntegrations)));
   }
 
-  findByTenantId(tenantId: string): Integration[] {
+  findByTenantId(tenantId: EntityId): Integration[] {
     return this.findByFields({ tenantId });
   }
 
@@ -600,7 +614,7 @@ export class IntegrationRepository extends Repository<Integration> {
 }
 
 export class FeatureFlagRepository extends Repository<FeatureFlag> {
-  private seedFlags: FeatureFlag[] = [
+  private static seedFlags: FeatureFlag[] = [
     { id: "feat-1", key: "new_ui", name: "新界面", description: "启用新版用户界面", type: "boolean", defaultValue: true, isEnabled: true, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-06-01T00:00:00.000Z" },
     { id: "feat-2", key: "sso_enabled", name: "SSO 登录", description: "启用单点登录功能", type: "boolean", defaultValue: false, isEnabled: true, tenantOverrides: [{ tenantId: "tenant-acme", value: true, createdAt: "2026-03-01T00:00:00.000Z" }, { tenantId: "tenant-nova", value: true, createdAt: "2026-04-01T00:00:00.000Z" }], createdAt: "2026-02-01T00:00:00.000Z", updatedAt: "2026-06-01T00:00:00.000Z" },
     { id: "feat-3", key: "audit_log_retention_days", name: "审计日志保留天数", description: "审计日志保留天数配置", type: "number", defaultValue: 90, isEnabled: true, createdAt: "2026-03-01T00:00:00.000Z", updatedAt: "2026-03-01T00:00:00.000Z" },
@@ -610,14 +624,14 @@ export class FeatureFlagRepository extends Repository<FeatureFlag> {
   ];
 
   constructor() {
-    super(JSON.parse(JSON.stringify(this.seedFlags)));
+    super(JSON.parse(JSON.stringify(FeatureFlagRepository.seedFlags)));
   }
 
-  findByKey(key: string): FeatureFlag | undefined {
+  findByKey(key: EntityId): FeatureFlag | undefined {
     return this.findByFields({ key })[0];
   }
 
-  getValue(key: string, tenantId?: string): unknown {
+  getValue(key: EntityId, tenantId?: string): unknown {
     const flag = this.findByKey(key);
     if (!flag || !flag.isEnabled) {
       return flag?.defaultValue;
@@ -633,22 +647,23 @@ export class FeatureFlagRepository extends Repository<FeatureFlag> {
     return flag.defaultValue;
   }
 
-  addTenantOverride(key: string, tenantId: string, value: unknown): void {
+  addTenantOverride(key: EntityId, tenantId: EntityId, value: unknown): void {
     const flag = this.findByKey(key);
+    const normalizedTenantId = normalizeEntityId(tenantId);
     if (flag) {
       if (!flag.tenantOverrides) {
         flag.tenantOverrides = [];
       }
-      const existingIndex = flag.tenantOverrides.findIndex((o) => o.tenantId === tenantId);
+      const existingIndex = flag.tenantOverrides.findIndex((o) => o.tenantId === normalizedTenantId);
       if (existingIndex >= 0) {
-        flag.tenantOverrides[existingIndex] = { tenantId, value, createdAt: new Date().toISOString() };
+        flag.tenantOverrides[existingIndex] = { tenantId: normalizedTenantId, value, createdAt: new Date().toISOString() };
       } else {
-        flag.tenantOverrides.push({ tenantId, value, createdAt: new Date().toISOString() });
+        flag.tenantOverrides.push({ tenantId: normalizedTenantId, value, createdAt: new Date().toISOString() });
       }
     }
   }
 
-  removeTenantOverride(key: string, tenantId: string): void {
+  removeTenantOverride(key: EntityId, tenantId: EntityId): void {
     const flag = this.findByKey(key);
     if (flag?.tenantOverrides) {
       flag.tenantOverrides = flag.tenantOverrides.filter((o) => o.tenantId !== tenantId);
@@ -657,7 +672,7 @@ export class FeatureFlagRepository extends Repository<FeatureFlag> {
 }
 
 export class FeatureFlagAuditRepository extends Repository<FeatureFlagAudit> {
-  private seedAudits: FeatureFlagAudit[] = [
+  private static seedAudits: FeatureFlagAudit[] = [
     { id: "audit-1", featureKey: "new_ui", actorId: "u-platform", changeType: "created", newValue: true, createdAt: "2026-01-01T00:00:00.000Z" },
     { id: "audit-2", featureKey: "sso_enabled", actorId: "u-platform", changeType: "created", newValue: false, createdAt: "2026-02-01T00:00:00.000Z" },
     { id: "audit-3", featureKey: "sso_enabled", actorId: "u-platform", changeType: "updated", oldValue: false, newValue: true, createdAt: "2026-06-01T00:00:00.000Z" },
@@ -667,24 +682,24 @@ export class FeatureFlagAuditRepository extends Repository<FeatureFlagAudit> {
   ];
 
   constructor() {
-    super(JSON.parse(JSON.stringify(this.seedAudits)));
+    super(JSON.parse(JSON.stringify(FeatureFlagAuditRepository.seedAudits)));
   }
 
-  findByFeatureKey(featureKey: string): FeatureFlagAudit[] {
+  findByFeatureKey(featureKey: EntityId): FeatureFlagAudit[] {
     return this.findByFields({ featureKey });
   }
 
-  findByActorId(actorId: string): FeatureFlagAudit[] {
+  findByActorId(actorId: EntityId): FeatureFlagAudit[] {
     return this.findByFields({ actorId });
   }
 
-  recordChange(featureKey: string, actorId: string, changeType: FeatureFlagAudit["changeType"], oldValue?: unknown, newValue?: unknown): void {
-    this.create({ featureKey, actorId, changeType, oldValue, newValue, createdAt: new Date().toISOString() });
+  recordChange(featureKey: EntityId, actorId: EntityId, changeType: FeatureFlagAudit["changeType"], oldValue?: unknown, newValue?: unknown): void {
+    this.create({ featureKey: normalizeEntityId(featureKey), actorId: normalizeEntityId(actorId), changeType, oldValue, newValue, createdAt: new Date().toISOString() });
   }
 }
 
 export class RoleDefinitionRepository extends Repository<RoleDefinition> {
-  private seedRoles: RoleDefinition[] = [
+  private static seedRoles: RoleDefinition[] = [
     { id: "role-1", name: "平台管理员", description: "拥有平台所有权限", type: "system", permissions: ["tenant:view", "tenant:edit", "user:view", "user:edit", "role:view", "role:edit", "approval:view", "approval:approve", "release:view", "release:deploy", "audit:view", "billing:view", "billing:edit", "notification:view", "notification:manage", "webhook:manage", "metric:view", "token:manage", "team:manage", "integration:manage", "feature:manage", "ticket:view", "ticket:edit", "ticket:manage"], isActive: true, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
     { id: "role-2", name: "租户管理员", description: "管理租户内所有资源", type: "system", permissions: ["tenant:view", "tenant:edit", "user:view", "user:edit", "role:view", "role:edit", "approval:view", "approval:approve", "release:view", "billing:view", "notification:view", "notification:manage", "webhook:manage", "metric:view", "token:manage", "team:manage", "integration:manage", "ticket:view", "ticket:edit", "ticket:manage"], isActive: true, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
     { id: "role-3", name: "审计员", description: "只读审计权限", type: "system", permissions: ["tenant:view", "user:view", "role:view", "approval:view", "release:view", "audit:view", "billing:view", "notification:view", "metric:view", "ticket:view"], isActive: true, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
@@ -695,7 +710,7 @@ export class RoleDefinitionRepository extends Repository<RoleDefinition> {
   ];
 
   constructor() {
-    super(JSON.parse(JSON.stringify(this.seedRoles)));
+    super(JSON.parse(JSON.stringify(RoleDefinitionRepository.seedRoles)));
   }
 
   findByType(type: RoleDefinition["type"]): RoleDefinition[] {
@@ -716,23 +731,23 @@ export class RoleDefinitionRepository extends Repository<RoleDefinition> {
 }
 
 export class TicketRepository extends Repository<Ticket> {
-  private seedTickets: Ticket[] = [
+  private static seedTickets: Ticket[] = [
     { id: "ticket-1", tenantId: "tenant-orbit", title: "生产环境回滚后客户仍收到旧版账单通知", description: "2026-06-06 生产发布后触发回滚，但部分客户反馈仍收到旧版账单通知。需要紧急调查原因并修复。", priority: "critical", status: "in_progress", category: "bug_report", assigneeId: "u-platform", creatorId: "u-orbit-admin", tags: ["生产问题", "紧急"], createdAt: "2026-06-06T09:25:00.000Z", updatedAt: "2026-06-09T10:30:00.000Z" },
-    { id: "ticket-2", tenantId: "tenant-acme", title: "SSO 元数据即将过期", description: "SSO 元数据证书将于 2026-06-30 过期，请提前更新。", priority: "high", status: "open", category: "security", assigneeId: "u-tenant-admin", creatorId: "u-release", tags: ["SSO", "安全"], createdAt: "2026-06-09T10:20:00.000Z", updatedAt: "2026-06-09T10:20:00.000Z" },
+    { id: "ticket-2", tenantId: "tenant-acme", title: "SSO 元数据即将过期", description: "SSO 元数据证书将于 2026-06-30 过期，请提前更新。", priority: "high", status: "new", category: "security", assigneeId: "u-tenant-admin", creatorId: "u-release", tags: ["SSO", "安全"], createdAt: "2026-06-09T10:20:00.000Z", updatedAt: "2026-06-09T10:20:00.000Z" },
     { id: "ticket-3", tenantId: "tenant-nova", title: "门店批量导入失败率高于阈值", description: "华东区域门店批量导入失败率达到 15%，高于阈值 10%。需要排查导入流程问题。", priority: "medium", status: "waiting_customer", category: "support", assigneeId: "u-release", creatorId: "u-nova-admin", tags: ["数据导入", "性能"], createdAt: "2026-06-08T16:40:00.000Z", updatedAt: "2026-06-09T09:00:00.000Z" },
-    { id: "ticket-4", tenantId: "tenant-orbit", title: "月活连续两周下降超过 15%", description: "用户活跃度连续两周下降超过 15%，需要分析原因并制定改进措施。", priority: "medium", status: "open", category: "support", creatorId: "u-orbit-admin", tags: ["用户增长", "分析"], createdAt: "2026-06-07T11:15:00.000Z", updatedAt: "2026-06-07T11:15:00.000Z" },
+    { id: "ticket-4", tenantId: "tenant-orbit", title: "月活连续两周下降超过 15%", description: "用户活跃度连续两周下降超过 15%，需要分析原因并制定改进措施。", priority: "medium", status: "new", category: "support", creatorId: "u-orbit-admin", tags: ["用户增长", "分析"], createdAt: "2026-06-07T11:15:00.000Z", updatedAt: "2026-06-07T11:15:00.000Z" },
     { id: "ticket-5", tenantId: "tenant-acme", title: "合同增购报价待客户确认", description: "Acme 精密制造合同增购 60 个席位的报价已发送，等待客户确认。", priority: "low", status: "resolved", category: "billing", assigneeId: "u-platform", creatorId: "u-platform", tags: ["合同", "增购"], createdAt: "2026-06-06T14:05:00.000Z", updatedAt: "2026-06-08T10:00:00.000Z", resolvedAt: "2026-06-08T10:00:00.000Z" },
-    { id: "ticket-6", tenantId: "tenant-nexus", title: "医疗数据接口白名单审批超时", description: "医疗数据接口白名单审批已超过 48 小时，影响试点医院数据同步。", priority: "critical", status: "open", category: "security", assigneeId: "u-platform", creatorId: "u-nexus-admin", tags: ["医疗数据", "安全", "紧急"], createdAt: "2026-06-09T07:50:00.000Z", updatedAt: "2026-06-09T07:50:00.000Z" },
+    { id: "ticket-6", tenantId: "tenant-nexus", title: "医疗数据接口白名单审批超时", description: "医疗数据接口白名单审批已超过 48 小时，影响试点医院数据同步。", priority: "critical", status: "new", category: "security", assigneeId: "u-platform", creatorId: "u-nexus-admin", tags: ["医疗数据", "安全", "紧急"], createdAt: "2026-06-09T07:50:00.000Z", updatedAt: "2026-06-09T07:50:00.000Z" },
     { id: "ticket-7", tenantId: "tenant-verdant", title: "客户活跃数据连续三周未上报", description: "Verdant 绿色农业客户活跃数据连续三周未上报，需要联系客户确认。", priority: "high", status: "in_progress", category: "support", assigneeId: "u-verdant-admin", creatorId: "u-platform", tags: ["数据上报", "客户触达"], createdAt: "2026-06-08T10:00:00.000Z", updatedAt: "2026-06-09T09:30:00.000Z" },
-    { id: "ticket-8", tenantId: "tenant-helios", title: "生产环境新增节点审计合规性评估", description: "需要完成新增部署节点的合规自评后才可部署。", priority: "medium", status: "open", category: "security", assigneeId: "u-helios-release", creatorId: "u-helios-admin", tags: ["合规", "审计"], createdAt: "2026-06-09T08:20:00.000Z", updatedAt: "2026-06-09T08:20:00.000Z" },
+    { id: "ticket-8", tenantId: "tenant-helios", title: "生产环境新增节点审计合规性评估", description: "需要完成新增部署节点的合规自评后才可部署。", priority: "medium", status: "new", category: "security", assigneeId: "u-helios-release", creatorId: "u-helios-admin", tags: ["合规", "审计"], createdAt: "2026-06-09T08:20:00.000Z", updatedAt: "2026-06-09T08:20:00.000Z" },
     { id: "ticket-9", tenantId: "tenant-pivot", title: "场站接入数据导出权限调整工单", description: "新能源场站数据导出权限已按最新策略调整完成。", priority: "low", status: "resolved", category: "support", assigneeId: "u-pivot-admin", creatorId: "u-pivot-admin", tags: ["权限", "数据导出"], createdAt: "2026-06-07T09:00:00.000Z", updatedAt: "2026-06-08T10:20:00.000Z", resolvedAt: "2026-06-08T10:20:00.000Z" }
   ];
 
   constructor() {
-    super(JSON.parse(JSON.stringify(this.seedTickets)));
+    super(JSON.parse(JSON.stringify(TicketRepository.seedTickets)));
   }
 
-  findByTenantId(tenantId: string): Ticket[] {
+  findByTenantId(tenantId: EntityId): Ticket[] {
     return this.findByFields({ tenantId });
   }
 
@@ -748,16 +763,16 @@ export class TicketRepository extends Repository<Ticket> {
     return this.findByFields({ category });
   }
 
-  findByAssigneeId(assigneeId: string): Ticket[] {
+  findByAssigneeId(assigneeId: EntityId): Ticket[] {
     return this.findByFields({ assigneeId });
   }
 
-  findByCreatorId(creatorId: string): Ticket[] {
+  findByCreatorId(creatorId: EntityId): Ticket[] {
     return this.findByFields({ creatorId });
   }
 
   findOpen(): Ticket[] {
-    return this.findByFields({ status: "open" });
+    return this.findByFields({ status: "new" });
   }
 
   findInProgress(): Ticket[] {
@@ -774,55 +789,55 @@ export class TicketRepository extends Repository<Ticket> {
 }
 
 export class TicketConversationRepository extends Repository<TicketConversation> {
-  private seedConversations: TicketConversation[] = [
-    { id: "conv-1", ticketId: "ticket-1", userId: "u-orbit-admin", message: "生产环境回滚后客户仍收到旧版账单通知，请紧急处理", createdAt: "2026-06-06T09:25:00.000Z" },
-    { id: "conv-2", ticketId: "ticket-1", userId: "u-platform", message: "已收到，正在调查问题原因", createdAt: "2026-06-06T09:30:00.000Z" },
-    { id: "conv-3", ticketId: "ticket-1", userId: "u-platform", message: "问题已定位，是缓存刷新机制导致的，正在修复", createdAt: "2026-06-06T11:00:00.000Z" },
-    { id: "conv-4", ticketId: "ticket-2", userId: "u-release", message: "SSO 元数据证书即将过期，请提前更新", createdAt: "2026-06-09T10:20:00.000Z" },
-    { id: "conv-5", ticketId: "ticket-3", userId: "u-nova-admin", message: "华东区域门店批量导入失败率达到 15%", createdAt: "2026-06-08T16:40:00.000Z" },
-    { id: "conv-6", ticketId: "ticket-3", userId: "u-release", message: "收到，我们需要更多信息来排查问题", createdAt: "2026-06-08T16:45:00.000Z" },
-    { id: "conv-7", ticketId: "ticket-6", userId: "u-nexus-admin", message: "医疗数据接口白名单审批已超过 48 小时", createdAt: "2026-06-09T07:50:00.000Z" },
-    { id: "conv-8", ticketId: "ticket-6", userId: "u-platform", message: "非常抱歉，已加急处理，预计今天内完成", createdAt: "2026-06-09T08:00:00.000Z" }
+  private static seedConversations: TicketConversation[] = [
+    { id: "conv-1", ticketId: "ticket-1", authorId: "u-orbit-admin", message: "生产环境回滚后客户仍收到旧版账单通知，请紧急处理", createdAt: "2026-06-06T09:25:00.000Z" },
+    { id: "conv-2", ticketId: "ticket-1", authorId: "u-platform", message: "已收到，正在调查问题原因", createdAt: "2026-06-06T09:30:00.000Z" },
+    { id: "conv-3", ticketId: "ticket-1", authorId: "u-platform", message: "问题已定位，是缓存刷新机制导致的，正在修复", createdAt: "2026-06-06T11:00:00.000Z" },
+    { id: "conv-4", ticketId: "ticket-2", authorId: "u-release", message: "SSO 元数据证书即将过期，请提前更新", createdAt: "2026-06-09T10:20:00.000Z" },
+    { id: "conv-5", ticketId: "ticket-3", authorId: "u-nova-admin", message: "华东区域门店批量导入失败率达到 15%", createdAt: "2026-06-08T16:40:00.000Z" },
+    { id: "conv-6", ticketId: "ticket-3", authorId: "u-release", message: "收到，我们需要更多信息来排查问题", createdAt: "2026-06-08T16:45:00.000Z" },
+    { id: "conv-7", ticketId: "ticket-6", authorId: "u-nexus-admin", message: "医疗数据接口白名单审批已超过 48 小时", createdAt: "2026-06-09T07:50:00.000Z" },
+    { id: "conv-8", ticketId: "ticket-6", authorId: "u-platform", message: "非常抱歉，已加急处理，预计今天内完成", createdAt: "2026-06-09T08:00:00.000Z" }
   ];
 
   constructor() {
-    super(JSON.parse(JSON.stringify(this.seedConversations)));
+    super(JSON.parse(JSON.stringify(TicketConversationRepository.seedConversations)));
   }
 
-  findByTicketId(ticketId: string): TicketConversation[] {
+  findByTicketId(ticketId: EntityId): TicketConversation[] {
     return this.findByFields({ ticketId });
   }
 
-  findByUserId(userId: string): TicketConversation[] {
-    return this.findByFields({ userId });
+  findByUserId(userId: EntityId): TicketConversation[] {
+    return this.findByFields({ authorId: userId });
   }
 }
 
 export class TicketStatusTransitionRepository extends Repository<TicketStatusTransition> {
-  private seedTransitions: TicketStatusTransition[] = [
-    { id: "trans-1", ticketId: "ticket-1", fromStatus: "open", toStatus: "in_progress", actorId: "u-platform", createdAt: "2026-06-06T09:30:00.000Z" },
-    { id: "trans-2", ticketId: "ticket-5", fromStatus: "open", toStatus: "in_progress", actorId: "u-platform", createdAt: "2026-06-06T14:10:00.000Z" },
+  private static seedTransitions: TicketStatusTransition[] = [
+    { id: "trans-1", ticketId: "ticket-1", fromStatus: "new", toStatus: "in_progress", actorId: "u-platform", createdAt: "2026-06-06T09:30:00.000Z" },
+    { id: "trans-2", ticketId: "ticket-5", fromStatus: "new", toStatus: "in_progress", actorId: "u-platform", createdAt: "2026-06-06T14:10:00.000Z" },
     { id: "trans-3", ticketId: "ticket-5", fromStatus: "in_progress", toStatus: "resolved", actorId: "u-platform", createdAt: "2026-06-08T10:00:00.000Z" },
-    { id: "trans-4", ticketId: "ticket-3", fromStatus: "open", toStatus: "waiting_customer", actorId: "u-release", createdAt: "2026-06-09T09:00:00.000Z" },
-    { id: "trans-5", ticketId: "ticket-7", fromStatus: "open", toStatus: "in_progress", actorId: "u-verdant-admin", createdAt: "2026-06-09T09:30:00.000Z" },
-    { id: "trans-6", ticketId: "ticket-9", fromStatus: "open", toStatus: "in_progress", actorId: "u-pivot-admin", createdAt: "2026-06-07T09:05:00.000Z" },
+    { id: "trans-4", ticketId: "ticket-3", fromStatus: "new", toStatus: "waiting_customer", actorId: "u-release", createdAt: "2026-06-09T09:00:00.000Z" },
+    { id: "trans-5", ticketId: "ticket-7", fromStatus: "new", toStatus: "in_progress", actorId: "u-verdant-admin", createdAt: "2026-06-09T09:30:00.000Z" },
+    { id: "trans-6", ticketId: "ticket-9", fromStatus: "new", toStatus: "in_progress", actorId: "u-pivot-admin", createdAt: "2026-06-07T09:05:00.000Z" },
     { id: "trans-7", ticketId: "ticket-9", fromStatus: "in_progress", toStatus: "resolved", actorId: "u-pivot-admin", createdAt: "2026-06-08T10:20:00.000Z" }
   ];
 
   constructor() {
-    super(JSON.parse(JSON.stringify(this.seedTransitions)));
+    super(JSON.parse(JSON.stringify(TicketStatusTransitionRepository.seedTransitions)));
   }
 
-  findByTicketId(ticketId: string): TicketStatusTransition[] {
+  findByTicketId(ticketId: EntityId): TicketStatusTransition[] {
     return this.findByFields({ ticketId });
   }
 
-  findByActorId(actorId: string): TicketStatusTransition[] {
+  findByActorId(actorId: EntityId): TicketStatusTransition[] {
     return this.findByFields({ actorId });
   }
 
-  recordTransition(ticketId: string, fromStatus: Ticket["status"], toStatus: Ticket["status"], actorId: string): void {
-    this.create({ ticketId, fromStatus, toStatus, actorId, createdAt: new Date().toISOString() });
+  recordTransition(ticketId: EntityId, fromStatus: Ticket["status"], toStatus: Ticket["status"], actorId: EntityId): void {
+    this.create({ ticketId: normalizeEntityId(ticketId), fromStatus, toStatus, actorId: normalizeEntityId(actorId), createdAt: new Date().toISOString() });
   }
 }
 
@@ -849,3 +864,58 @@ export const roleDefinitions = new RoleDefinitionRepository();
 export const tickets = new TicketRepository();
 export const ticketConversations = new TicketConversationRepository();
 export const ticketStatusTransitions = new TicketStatusTransitionRepository();
+
+/** 重置所有仓库到初始种子数据，用于测试 */
+export function resetStore(): void {
+  tenants.reset();
+  users.reset();
+  approvals.reset();
+  releases.reset();
+  auditLogs.reset();
+  supportRisks.reset();
+  activityEvents.reset();
+  subscriptions.reset();
+  invoices.reset();
+  notifications.reset();
+  notificationPreferences.reset();
+  webhooks.reset();
+  webhookDeliveryLogs.reset();
+  tokens.reset();
+  teams.reset();
+  teamMembers.reset();
+  integrations.reset();
+  featureFlags.reset();
+  featureFlagAudits.reset();
+  roleDefinitions.reset();
+  tickets.reset();
+  ticketConversations.reset();
+  ticketStatusTransitions.reset();
+}
+
+/** 向后兼容的 store 对象 — 暴露底层数组供旧代码使用 */
+export const store = {
+  get tenants() { return tenants.items; },
+  get users() { return users.items; },
+  get approvals() { return approvals.items; },
+  get releases() { return releases.items; },
+  get auditLogs() { return auditLogs.items; },
+  get supportRisks() { return supportRisks.items; },
+  get activityEvents() { return activityEvents.items; },
+  get subscriptions() { return subscriptions.items; },
+  get invoices() { return invoices.items; },
+  get notifications() { return notifications.items; },
+  get notificationPreferences() { return notificationPreferences.items; },
+  get webhooks() { return webhooks.items; },
+  get webhookDeliveryLogs() { return webhookDeliveryLogs.items; },
+  get tokens() { return tokens.items; },
+  get teams() { return teams.items; },
+  get teamMembers() { return teamMembers.items; },
+  get integrations() { return integrations.items; },
+  get featureFlags() { return featureFlags.items; },
+  get featureFlagAudits() { return featureFlagAudits.items; },
+  get roleDefinitions() { return roleDefinitions.items; },
+  get roles() { return roleDefinitions; },
+  get tickets() { return tickets.items; },
+  get ticketConversations() { return ticketConversations.items; },
+  get ticketStatusTransitions() { return ticketStatusTransitions.items; }
+};

@@ -1,9 +1,11 @@
 import { fetchHeaders } from "./session";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+  const normalizedPath = path.startsWith("/api") ? path : `/api${path}`;
+  const res = await fetch(normalizedPath, {
     ...init,
     headers: {
+      "Content-Type": "application/json",
       ...fetchHeaders(),
       ...(init?.headers ?? {})
     }
@@ -31,6 +33,9 @@ export interface ApprovalView {
   status: "pending" | "approved" | "rejected";
   requestedBy: string;
   decidedBy?: string;
+  description?: string;
+  createdAt?: string;
+  decidedAt?: string;
 }
 
 export interface ReleaseView {
@@ -41,7 +46,10 @@ export interface ReleaseView {
   status: "pending" | "deployed" | "rolled_back";
   operatorId: string;
   createdAt: string;
+  deployedAt?: string;
+  rolledBackAt?: string;
   description?: string;
+  changelog?: string;
 }
 
 export interface AuditLogView {
@@ -59,6 +67,8 @@ export interface UserView {
   name: string;
   email: string;
   roles: string[];
+  isActive?: boolean;
+  createdAt?: string;
 }
 
 export interface TenantView {
@@ -73,6 +83,7 @@ export interface TenantView {
   seatsLimit: number;
   monthlyActiveUsers: number;
   arr: number;
+  subscriptionStatus?: string;
 }
 
 export interface SupportRiskView {
@@ -99,6 +110,17 @@ export interface ActivityEventView {
 }
 
 export const api = {
+  get: <T = any>(path: string, options?: { params?: Record<string, string> }) => {
+    const query = options?.params ? `?${new URLSearchParams(options.params).toString()}` : "";
+    return request<T>(`${path}${query}`);
+  },
+  post: <T = any>(path: string, payload?: unknown) =>
+    request<T>(path, { method: "POST", body: payload === undefined ? undefined : JSON.stringify(payload) }),
+  put: <T = any>(path: string, payload?: unknown) =>
+    request<T>(path, { method: "PUT", body: payload === undefined ? undefined : JSON.stringify(payload) }),
+  patch: <T = any>(path: string, payload?: unknown) =>
+    request<T>(path, { method: "PATCH", body: payload === undefined ? undefined : JSON.stringify(payload) }),
+  delete: <T = void>(path: string) => request<T>(path, { method: "DELETE" }),
   me: () => request<SessionView>("/api/session/me"),
   findUserByEmail: (email: string) =>
     request<SessionView | { error: string }>(`/api/users/by-email/${encodeURIComponent(email)}`),

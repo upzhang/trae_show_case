@@ -1,3 +1,4 @@
+import { describe, it, expect } from "vitest";
 import request from "supertest";
 import app from "../../apps/api/src/app";
 
@@ -353,5 +354,117 @@ describe("Invoices API", () => {
     
     expect(response.status).toBe(200);
     expect(response.body.sent).toBe(true);
+  });
+});
+
+describe("Invoices API - 边界与异常路径", () => {
+  const HEADERS = { "x-user-id": "u-platform", "x-tenant-id": "tenant-acme" };
+
+  describe("POST /api/invoices - 缺少必填字段", () => {
+    it("should return 400 when body is empty", async () => {
+      const response = await request(app)
+        .post("/api/invoices")
+        .set(HEADERS)
+        .send({});
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should return 400 when tenantId is empty string", async () => {
+      const response = await request(app)
+        .post("/api/invoices")
+        .set(HEADERS)
+        .send({ tenantId: "", amount: 100 });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should return 400 when amount is -1", async () => {
+      const response = await request(app)
+        .post("/api/invoices")
+        .set(HEADERS)
+        .send({ tenantId: "tenant-acme", amount: -1 });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should return 400 when amount is -999.99", async () => {
+      const response = await request(app)
+        .post("/api/invoices")
+        .set(HEADERS)
+        .send({ tenantId: "tenant-acme", amount: -999.99 });
+
+      expect(response.status).toBe(400);
+    });
+  });
+
+  describe("PUT /api/invoices/:id - 更新不存在的发票", () => {
+    it("should return 404 when updating non-existent invoice", async () => {
+      const response = await request(app)
+        .put("/api/invoices/non-existent-id")
+        .set(HEADERS)
+        .send({ amount: 100 });
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("DELETE /api/invoices/:id - 删除不存在的发票", () => {
+    it("should return 404 when deleting non-existent invoice", async () => {
+      const response = await request(app)
+        .delete("/api/invoices/non-existent-id")
+        .set(HEADERS);
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /api/invoices/:id/pay - 支付不存在的发票", () => {
+    it("should return 404 when paying non-existent invoice", async () => {
+      const response = await request(app)
+        .post("/api/invoices/non-existent-id/pay")
+        .set(HEADERS);
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /api/invoices/:id/refund - 退款不存在的发票", () => {
+    it("should return 404 when refunding non-existent invoice", async () => {
+      const response = await request(app)
+        .post("/api/invoices/non-existent-id/refund")
+        .set(HEADERS);
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /api/invoices - 无效金额格式", () => {
+    it("should return 400 when amount is negative float", async () => {
+      const response = await request(app)
+        .post("/api/invoices")
+        .set(HEADERS)
+        .send({ tenantId: "tenant-acme", amount: -0.01 });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should return 400 when amount is -100", async () => {
+      const response = await request(app)
+        .post("/api/invoices")
+        .set(HEADERS)
+        .send({ tenantId: "tenant-acme", amount: -100 });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should return 400 when amount is -0.5", async () => {
+      const response = await request(app)
+        .post("/api/invoices")
+        .set(HEADERS)
+        .send({ tenantId: "tenant-acme", amount: -0.5 });
+
+      expect(response.status).toBe(400);
+    });
   });
 });
