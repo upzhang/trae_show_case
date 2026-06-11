@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { can } from "../lib/session";
 import { PageHeader } from "../components/PageHeader";
 import { Button } from "../components/Button";
 import { Card, CardHeader, CardBody } from "../components/Card";
@@ -215,7 +216,7 @@ export function RolesPage() {
       <PageHeader
         title="角色与权限管理"
         description="管理自定义角色和权限矩阵"
-        actions={<Button icon="plus" onClick={openCreate}>创建角色</Button>}
+        actions={can("role:write") ? <Button icon="plus" onClick={openCreate}>创建角色</Button> : undefined}
       />
 
       <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
@@ -231,7 +232,7 @@ export function RolesPage() {
         <EmptyState
           title="暂无角色"
           description="点击上方按钮创建第一个自定义角色"
-          action={{ label: "创建角色", onClick: openCreate }}
+          action={can("role:write") ? { label: "创建角色", onClick: openCreate } : undefined}
         />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -261,13 +262,17 @@ export function RolesPage() {
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                    <Button variant="ghost" size="sm" icon="edit" onClick={() => openEdit(role)}>
-                      编辑
-                    </Button>
-                    <Button variant="ghost" size="sm" icon="copy" onClick={() => openClone(role)}>
-                      克隆
-                    </Button>
-                    {role.type !== "system" && (
+                    {can("role:edit") && (
+                      <Button variant="ghost" size="sm" icon="edit" onClick={() => openEdit(role)}>
+                        编辑
+                      </Button>
+                    )}
+                    {can("role:write") && (
+                      <Button variant="ghost" size="sm" icon="copy" onClick={() => openClone(role)}>
+                        克隆
+                      </Button>
+                    )}
+                    {role.type !== "system" && can("role:delete") && (
                       <Button variant="ghost" size="sm" icon="trash" onClick={() => setShowDelete(role)}>
                         删除
                       </Button>
