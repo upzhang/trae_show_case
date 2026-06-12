@@ -1,0 +1,6 @@
+- [x] result_api_test.md 已重命名为带时间戳的文件名
+- [x] 15 个测试用例已从不同文件中删除
+- [x] 删除后 pnpm test 通过
+- [x] 场景 2 初始状态已提交到 git
+- [x] showcase/ 目录下有 9 张截图（step_01 ~ step_12，步骤 5/7/9 无需截图）
+- [x] showcase/result_blackbox_test_20260612_1521.md 包含 12 步操作说明及截图引用

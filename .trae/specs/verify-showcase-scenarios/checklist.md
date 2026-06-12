@@ -1,0 +1,7 @@
+- [x] docs/ 下所有文件名均为小写
+- [x] docs/0-index.md 内部链接已更新
+- [x] showcase/my-showcase.md 中 docs/ 引用已更新
+- [x] 场景 2：basic.test.ts 删除 3 个 describe 块后剩余测试通过（351/351）
+- [x] 场景 2：basic.test.ts 已回退到原始状态
+- [x] 场景 3：pnpm test 可正常运行 13 个测试文件，355 个测试全部通过
+- [x] 场景 4：审批中心页面所有功能可正常操作（14 步全部成功）

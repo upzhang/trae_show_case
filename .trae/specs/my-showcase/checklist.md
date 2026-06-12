@@ -1,0 +1,9 @@
+- [x] showcase/my-showcase.md 已创建，包含 5 个场景
+- [x] 场景 1 引用标签 showcase1-项目理解前，说明回退和演示步骤
+- [x] 场景 2 初始状态已准备（basic.test.ts 删除了 3 个 describe 块，commit cce6aee）
+- [x] 场景 2 明确补全后的预期（恢复 3 个 describe 块，风格一致）
+- [x] 场景 3 一键执行所有 API 测试，汇总 12 个文件的 PASS/FAIL
+- [x] 场景 4 指定审批中心页面，列出操作序列和截图点
+- [x] 场景 5 描述 bug 现象、涉及模块、修复范围
+- [x] 每个场景包含操作步骤、预期 Trae 行为、验证方式
+- [x] 场景 2 的测试文件改动已回退（git revert → 1375be5）
