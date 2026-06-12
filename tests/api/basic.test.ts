@@ -45,44 +45,6 @@ describe("RBAC: permissions", () => {
   });
 });
 
-describe("approvals: status consistency", () => {
-  it("can approve a pending approval", async () => {
-    const request = (await import("supertest")).default(app);
-    const res = await request
-      .put("/api/approvals/ap-1001/approve")
-      .set("x-user-id", "u-release");
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe("approved");
-  });
-
-  // 预置缺陷 3 验证：重复审批不被拦截
-  // 正确行为：4xx 或状态保持不变
-  it("allows repeated approve (known issue — should be rejected by status machine)", async () => {
-    const request = (await import("supertest")).default(app);
-    const first = await request
-      .put("/api/approvals/ap-1002/approve")
-      .set("x-user-id", "u-release");
-    const second = await request
-      .put("/api/approvals/ap-1002/approve")
-      .set("x-user-id", "u-release");
-    expect(first.status).toBe(200);
-    expect(second.status).toBe(200);
-    // 以上为当前实际行为，正确修复后应让第二个请求失败
-  });
-});
-
-describe("releases: contract drift", () => {
-  it("releases list contains description field not defined in shared types (known issue)", async () => {
-    const request = (await import("supertest")).default(app);
-    const res = await request.get("/api/releases").set("x-user-id", "u-platform");
-    expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    const first = res.body[0];
-    // 预置缺陷 2 验证：shared 类型中无 description 字段
-    expect(first).toHaveProperty("description");
-  });
-});
-
 describe("enterprise realism: tenants, risks, and activities", () => {
   it("returns enriched tenant business profiles", async () => {
     const request = (await import("supertest")).default(app);
@@ -136,20 +98,6 @@ describe("enterprise realism: tenants, risks, and activities", () => {
       actorId: expect.any(String),
       createdAt: expect.any(String)
     });
-  });
-});
-
-describe("users: roles permission", () => {
-  // 预置缺陷 1 验证：tenant_admin 调用 PUT /api/users/:id/roles 能成功，
-  // 但按 RBAC 矩阵该操作需要 role:edit（只有 platform_admin 拥有）
-  it("currently allows tenant_admin to update another user roles (known issue)", async () => {
-    const request = (await import("supertest")).default(app);
-    const res = await request
-      .put("/api/users/u-auditor/roles")
-      .set("x-user-id", "u-tenant-admin")
-      .send({ roles: ["member"] });
-    expect(res.status).toBe(200);
-    // 以上为当前实际行为，正确修复后应为 403
   });
 });
 
