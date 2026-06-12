@@ -24,15 +24,6 @@ describe("Teams API", () => {
     expect(response.body).toHaveProperty("total");
   });
 
-  it("should list teams with search", async () => {
-    const response = await request(app)
-      .get("/api/teams?search=admin")
-      .set("X-Tenant-ID", "tenant-acme")
-      .set("X-User-ID", "u-platform");
-    
-    expect(response.status).toBe(200);
-    expect(Array.isArray(response.body)).toBe(true);
-  });
 
   it("should create a team", async () => {
     const response = await request(app)

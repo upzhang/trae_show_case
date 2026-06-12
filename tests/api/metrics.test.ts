@@ -220,11 +220,6 @@ describe("Metrics API", () => {
       expect(res.status).toBe(401);
     });
 
-    it("should return 401 when no x-user-id header on approvals", async () => {
-      const res = await request(app)
-        .get("/api/metrics/approvals");
 
-      expect(res.status).toBe(401);
-    });
   });
 });

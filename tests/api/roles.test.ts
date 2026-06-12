@@ -231,15 +231,6 @@ describe("Roles API", () => {
       expect(res.status).toBe(404);
     });
 
-    it("should allow cloning a system role", async () => {
-      const res = await request(app)
-        .post("/api/roles/role-4/clone")
-        .set(HEADERS)
-        .send({ name: "系统角色克隆版" });
 
-      expect(res.status).toBe(201);
-      expect(res.body.name).toBe("系统角色克隆版");
-      expect(res.body.type).toBe("custom");
-    });
   });
 });

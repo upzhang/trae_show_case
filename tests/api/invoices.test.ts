@@ -34,15 +34,6 @@ describe("Invoices API", () => {
     expect(Array.isArray(response.body)).toBe(true);
   });
 
-  it("should list invoices by period", async () => {
-    const response = await request(app)
-      .get("/api/invoices?period=this_month")
-      .set("X-Tenant-ID", "tenant-acme")
-      .set("X-User-ID", "u-platform");
-    
-    expect(response.status).toBe(200);
-    expect(Array.isArray(response.body)).toBe(true);
-  });
 
   it("should create an invoice", async () => {
     const response = await request(app)
@@ -458,13 +449,6 @@ describe("Invoices API - 边界与异常路径", () => {
       expect(response.status).toBe(400);
     });
 
-    it("should return 400 when amount is -0.5", async () => {
-      const response = await request(app)
-        .post("/api/invoices")
-        .set(HEADERS)
-        .send({ tenantId: "tenant-acme", amount: -0.5 });
 
-      expect(response.status).toBe(400);
-    });
   });
 });

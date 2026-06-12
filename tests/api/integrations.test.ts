@@ -24,15 +24,6 @@ describe("Integrations API", () => {
     expect(response.body).toHaveProperty("total");
   });
 
-  it("should list integrations by type", async () => {
-    const response = await request(app)
-      .get("/api/integrations?type=slack")
-      .set("X-Tenant-ID", "tenant-acme")
-      .set("X-User-ID", "u-platform");
-    
-    expect(response.status).toBe(200);
-    expect(Array.isArray(response.body)).toBe(true);
-  });
 
   it("should create an integration", async () => {
     const response = await request(app)

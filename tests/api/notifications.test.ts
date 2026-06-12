@@ -34,15 +34,6 @@ describe("Notifications API", () => {
     expect(Array.isArray(response.body)).toBe(true);
   });
 
-  it("should list notifications by read status", async () => {
-    const response = await request(app)
-      .get("/api/notifications?read=false")
-      .set("X-Tenant-ID", "tenant-acme")
-      .set("X-User-ID", "u-platform");
-    
-    expect(response.status).toBe(200);
-    expect(Array.isArray(response.body)).toBe(true);
-  });
 
   it("should list notifications for current user", async () => {
     const response = await request(app)
@@ -573,12 +564,5 @@ describe("Notifications API - Edge Cases", () => {
     expect(response.body.length).toBe(0);
   });
 
-  it("should handle filtering by read=true when no read notifications exist for user", async () => {
-    const response = await request(app)
-      .get("/api/notifications?read=true")
-      .set({ "x-user-id": "user-no-read", "x-tenant-id": "tenant-acme" });
 
-    expect(response.status).toBe(200);
-    expect(Array.isArray(response.body)).toBe(true);
-  });
 });

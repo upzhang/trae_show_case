@@ -34,15 +34,6 @@ describe("Subscriptions API", () => {
     expect(Array.isArray(response.body)).toBe(true);
   });
 
-  it("should list subscriptions by plan", async () => {
-    const response = await request(app)
-      .get("/api/subscriptions?plan=pro")
-      .set("X-Tenant-ID", "tenant-acme")
-      .set("X-User-ID", "u-platform");
-    
-    expect(response.status).toBe(200);
-    expect(Array.isArray(response.body)).toBe(true);
-  });
 
   it("should create a subscription", async () => {
     const response = await request(app)

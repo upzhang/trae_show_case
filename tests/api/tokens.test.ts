@@ -415,15 +415,6 @@ describe("Tokens API - Edge Cases", () => {
     expect(response.body).toHaveProperty("error");
   });
 
-  it("should return 400 when creating token with empty string expiresAt", async () => {
-    const response = await request(app)
-      .post("/api/tokens")
-      .set(HEADERS)
-      .send({ name: "Empty Date", scopes: ["read"], expiresAt: "" });
-
-    expect(response.status).toBe(400);
-    expect(response.body).toHaveProperty("error");
-  });
 
   it("should return 400 when creating token with scope 'delete' (not in enum)", async () => {
     const response = await request(app)

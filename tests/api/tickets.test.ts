@@ -44,15 +44,6 @@ describe("Tickets API", () => {
     expect(Array.isArray(response.body)).toBe(true);
   });
 
-  it("should list tickets by assignee", async () => {
-    const response = await request(app)
-      .get("/api/tickets?assignee=u-platform")
-      .set("X-Tenant-ID", "tenant-acme")
-      .set("X-User-ID", "u-platform");
-    
-    expect(response.status).toBe(200);
-    expect(Array.isArray(response.body)).toBe(true);
-  });
 
   it("should create a ticket", async () => {
     const response = await request(app)

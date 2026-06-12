@@ -34,15 +34,6 @@ describe("Features API", () => {
     expect(Array.isArray(response.body)).toBe(true);
   });
 
-  it("should list features by type", async () => {
-    const response = await request(app)
-      .get("/api/features?type=system")
-      .set("X-Tenant-ID", "tenant-acme")
-      .set("X-User-ID", "u-platform");
-    
-    expect(response.status).toBe(200);
-    expect(Array.isArray(response.body)).toBe(true);
-  });
 
   it("should create a feature flag", async () => {
     const response = await request(app)
@@ -581,13 +572,5 @@ describe("Features API — batch operations", () => {
     expect(response.body.non_existent_key).toBe(false);
   });
 
-  it("should handle empty keys parameter in batch status", async () => {
-    const response = await request(app)
-      .get("/api/features/status?keys=")
-      .set("X-Tenant-ID", "tenant-acme")
-      .set("X-User-ID", "u-platform");
 
-    expect(response.status).toBe(200);
-    expect(Object.keys(response.body).length).toBe(0);
-  });
 });

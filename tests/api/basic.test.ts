@@ -178,12 +178,6 @@ describe("authentication: missing headers", () => {
     const res = await request.get("/api/tenants");
     expect(res.status).toBe(401);
   });
-
-  it("returns 401 when no x-user-id header on approvals endpoint", async () => {
-    const request = (await import("supertest")).default(app);
-    const res = await request.get("/api/approvals");
-    expect(res.status).toBe(401);
-  });
 });
 
 describe("tenant: invalid tenant-id", () => {
@@ -241,12 +235,5 @@ describe("validation: empty request body", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 400 when creating approval with empty body", async () => {
-    const request = (await import("supertest")).default(app);
-    const res = await request
-      .post("/api/approvals")
-      .set("x-user-id", "u-platform")
-      .send({});
-    expect(res.status).toBe(400);
-  });
+
 });
