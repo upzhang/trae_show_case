@@ -1,5 +1,10 @@
 import { roleDefinitions } from "../store";
 import type { RoleDefinition } from "@trae/shared";
+import {
+  NotFoundError,
+  ForbiddenError,
+  ConflictError,
+} from "../lib/errors";
 
 /** 所有可用权限码 */
 const ALL_PERMISSIONS = [
@@ -59,7 +64,7 @@ export function getPermissionGroups(): Record<string, string[]> {
 export function createRole(data: { name: string; description?: string; permissions: string[] }): RoleDefinition {
   const existing = roleDefinitions.getAll().find((r) => r.name === data.name);
   if (existing) {
-    throw Object.assign(new Error("角色名称已存在"), { statusCode: 409 });
+    throw new ConflictError("CONFLICT_ROLE_NAME_EXISTS", "角色名称已存在");
   }
 
   const validPermissions = data.permissions.filter((p) => ALL_PERMISSIONS.includes(p));
@@ -79,10 +84,10 @@ export function createRole(data: { name: string; description?: string; permissio
 export function updateRole(id: string, data: { name?: string; description?: string; permissions?: string[] }): RoleDefinition {
   const role = roleDefinitions.get(id);
   if (!role) {
-    throw Object.assign(new Error("角色不存在"), { statusCode: 404 });
+    throw new NotFoundError("NOT_FOUND_ROLE", "角色不存在", { id });
   }
   if (role.type === "system") {
-    throw Object.assign(new Error("系统角色不可编辑"), { statusCode: 403 });
+    throw new ForbiddenError("系统角色不可编辑", { id, type: "system" });
   }
 
   const updates: Record<string, unknown> = { updatedAt: new Date().toISOString() };
@@ -100,7 +105,7 @@ export function updateRole(id: string, data: { name?: string; description?: stri
 export function cloneRole(id: string, newName: string): RoleDefinition {
   const role = roleDefinitions.get(id);
   if (!role) {
-    throw Object.assign(new Error("角色不存在"), { statusCode: 404 });
+    throw new NotFoundError("NOT_FOUND_ROLE", "角色不存在", { id });
   }
 
   const cloned = roleDefinitions.create({
@@ -119,10 +124,10 @@ export function cloneRole(id: string, newName: string): RoleDefinition {
 export function deleteRole(id: string): void {
   const role = roleDefinitions.get(id);
   if (!role) {
-    throw Object.assign(new Error("角色不存在"), { statusCode: 404 });
+    throw new NotFoundError("NOT_FOUND_ROLE", "角色不存在", { id });
   }
   if (role.type === "system") {
-    throw Object.assign(new Error("系统角色不可删除"), { statusCode: 403 });
+    throw new ForbiddenError("系统角色不可删除", { id, type: "system" });
   }
   roleDefinitions.delete(id);
 }
