@@ -246,7 +246,95 @@
 ---
 
 ## 场景 5：根据截图修复BUG
-要求 
-1、该bug在页面上有明确的错误弹窗
-2、该bug不能被测试用例检测到
-3、让trae修复时，仅有错误截图，没有其他信息
+
+### 演示目标
+
+展示 Trae 仅凭一张错误截图（无文字描述、无复现步骤），自动定位问题根因、完成前后端双层修复，且该 Bug 无法被现有测试用例检测到。
+
+### Bug 描述
+
+**截图内容**：角色管理页面，点击系统角色（如"平台管理员"）的"编辑"按钮，弹出编辑弹窗，修改内容后点击"保存"，页面弹出错误提示：
+
+```
+{
+  "error": "系统角色不可编辑",
+  "errorCode": "INTERNAL_ERROR",
+  "statusCode": 403
+}
+```
+
+**为什么测试用例检测不到**：
+
+`tests/api/roles.test.ts` 中的测试用例 `should return 403 when updating a system role` 仅校验 HTTP 状态码：
+
+```typescript
+expect(res.status).toBe(403);
+```
+
+它不检查响应体中的 `errorCode` 字段。无论 `errorCode` 是 `"INTERNAL_ERROR"` 还是 `"RBAC_FORBIDDEN"`，测试都会通过。因此该 Bug 在 CI 中不会被发现。
+
+### 根因分析
+
+**后端**：[role-service.ts](file:///Users/bytedance/Documents/trae_projects/trae_demo/trae-enterprise-validation-demo/apps/api/src/services/role-service.ts) 使用 `throw Object.assign(new Error("系统角色不可编辑"), { statusCode: 403 })` 抛出错误。`Object.assign` 生成的 Error 对象不是 `AppError` 实例，`error-handler` 中的 `formatErrorResponse()` 无法识别，走默认分支返回 `errorCode: "INTERNAL_ERROR"`。
+
+**前端**：[RolesPage.tsx](file:///Users/bytedance/Documents/trae_projects/trae_demo/trae-enterprise-validation-demo/apps/web-admin/src/pages/RolesPage.tsx) 对系统角色没有做任何前端防御——按钮显示"编辑"而非"查看"，弹窗内所有输入框和权限复选框均可操作，"保存"按钮可点击，直到请求到达后端才返回 403。
+
+### 操作步骤
+
+1. 在 Trae 中粘贴错误截图（仅截图，无其他信息）
+2. Trae 自动：
+   - 读取截图中的错误信息（`errorCode: "INTERNAL_ERROR"`、`statusCode: 403`）
+   - 搜索 `role-service.ts` 定位错误抛出位置
+   - 搜索 `RolesPage.tsx` 定位前端交互逻辑
+   - 读取 `errors.ts` 和 `error-handler.ts` 理解错误处理链路
+   - 识别根因：`Object.assign` 产生的 Error 不是 `AppError` 实例
+   - 读取 `guid.md` 中的系统角色规则（"系统角色不应该显示可编辑"）
+
+### 修复内容
+
+#### 后端修复（commit: `526e6d8`）
+
+| 文件 | 改动 |
+|------|------|
+| `apps/api/src/services/role-service.ts` | 引入 `NotFoundError`、`ForbiddenError`、`ConflictError`，替换全部 5 处 `throw Object.assign(new Error(...), { statusCode: NNN })` |
+
+修复后 curl 验证：
+
+```
+# 修复前
+{"error":"系统角色不可编辑","errorCode":"INTERNAL_ERROR","statusCode":403}
+
+# 修复后
+{"error":"系统角色不可编辑","errorCode":"RBAC_FORBIDDEN","details":{"id":"role-3","type":"system"}}
+```
+
+#### 前端修复（commit: `1e8346b`）
+
+| 改动点 | 说明 |
+|--------|------|
+| 卡片按钮 | 系统角色按钮文字从"编辑"改为"查看" |
+| Modal 标题 | 系统角色弹窗标题从"编辑角色"改为"查看角色" |
+| Alert 提示 | 弹窗顶部新增 `系统角色为平台内置角色，不可编辑或删除。` |
+| 输入框 | 角色名称、角色描述 `disabled={showEdit?.type === "system"}` |
+| 权限复选框 | 分组复选框、单项复选框全部 `disabled={isSystem}` |
+| 保存按钮 | `disabled={showEdit?.type === "system"}` |
+| handleEdit | 增加 `showEdit.type === "system"` 时本地快速失败，不发起请求 |
+
+### 验证方式
+
+| 验证项 | 预期结果 |
+|--------|----------|
+| 后端 403 响应 errorCode | `RBAC_FORBIDDEN`（非 `INTERNAL_ERROR`） |
+| 后端 404 响应 errorCode | `NOT_FOUND_ROLE`（非 `INTERNAL_ERROR`） |
+| 后端 409 响应 errorCode | `CONFLICT_ROLE_NAME_EXISTS`（非 `INTERNAL_ERROR`） |
+| 前端系统角色按钮 | 显示"查看"而非"编辑" |
+| 前端系统角色弹窗 | 标题"查看角色"，所有输入 disabled，保存按钮 disabled |
+| 前端自定义角色 | 编辑、克隆、删除功能不受影响 |
+| 现有测试用例 | 全部通过（测试仅校验 statusCode，不校验 errorCode） |
+
+### 关键亮点
+
+1. **仅凭截图定位**：Trae 从截图中提取 `errorCode: "INTERNAL_ERROR"` 和 `statusCode: 403`，反向搜索代码定位到 `role-service.ts` 的 `Object.assign` 抛错方式
+2. **自动追溯错误处理链路**：读取 `errors.ts` → `error-handler.ts` → `role-service.ts`，发现 `Object.assign` 生成的 Error 不是 `AppError` 实例
+3. **读取项目规范**：自动读取 `guid.md` 中的"系统角色不应该显示可编辑"规则，同步修复前端
+4. **测试盲区覆盖**：该 Bug 的 `errorCode` 字段不在测试断言范围内，Trae 仍然完成了修复
